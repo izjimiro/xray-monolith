@@ -297,6 +297,17 @@ public:
 	bool hud_loading;
 	// addition scopes: 3D scope lens passes of the hud item with this transform are not rendered (the sight that is not aimed through)
 	const Fmatrix* hud_lens_skip_xform = nullptr;
+	// addition scopes: 3D scope lens parameters per hud item (both sights render their lens with own params)
+	struct hud_lens_params
+	{
+		const Fmatrix* xform;
+		Fvector4 s3ds[4];
+		Fvector4 ms_color;
+		int ms_current;
+		int ms_count;
+	};
+	hud_lens_params hud_lens[2];
+	u32 hud_lens_count = 0;
 	s32 m_MSAASample;
 
 	BENCH_SEC_SCRAMBLEMEMBER1

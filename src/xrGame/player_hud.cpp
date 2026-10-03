@@ -1433,18 +1433,39 @@ void player_hud::update(const Fmatrix& cam_trans)
 	if (m_attached_items[ADD_SIGHT_ATTACH_IDX])
 		m_attached_items[ADD_SIGHT_ATTACH_IDX]->update(true);
 
-	// addition scope: the sight that is not aimed through doesn't render its 3D scope lens
+	// addition scope: both sights render their 3D scope lens with their own params (set from scripts);
+	// without the params only the sight that is aimed through renders its lens
 	{
 		const Fmatrix* skip = nullptr;
+		u32 lens_count = 0;
 		attachable_hud_item* sc = m_attached_items[SCOPE_ATTACH_IDX];
 		attachable_hud_item* ad = m_attached_items[ADD_SIGHT_ATTACH_IDX];
 		if (sc && ad && m_attached_items[0])
 		{
-			CWeapon* w = smart_cast<CWeapon*>(m_attached_items[0]->m_parent_hud_item);
-			if (w)
-				skip = w->IsAdditionalSightActive() ? &sc->m_item_transform : &ad->m_item_transform;
+			if (m_lens_set[0] && m_lens_set[1])
+			{
+				attachable_hud_item* items[2] = { sc, ad };
+				for (u32 i = 0; i < 2; ++i)
+				{
+					IRender_interface::hud_lens_params& p = ::Render->hud_lens[i];
+					p.xform = &items[i]->m_item_transform;
+					for (int k = 0; k < 4; ++k)
+						p.s3ds[k] = m_lens_params[i][k];
+					p.ms_color = m_lens_params[i][4];
+					p.ms_current = iFloor(m_lens_params[i][5].x + 0.5f);
+					p.ms_count = iFloor(m_lens_params[i][5].y + 0.5f);
+				}
+				lens_count = 2;
+			}
+			else
+			{
+				CWeapon* w = smart_cast<CWeapon*>(m_attached_items[0]->m_parent_hud_item);
+				if (w)
+					skip = w->IsAdditionalSightActive() ? &sc->m_item_transform : &ad->m_item_transform;
+			}
 		}
 		::Render->hud_lens_skip_xform = skip;
+		::Render->hud_lens_count = lens_count;
 	}
 
 	if (script_anim_item_attached && script_anim_item_model)
@@ -1907,7 +1928,10 @@ void player_hud::detach_item_idx(u16 idx)
 	if (NULL == m_attached_items[idx]) return;
 
 	if (is_sight_attach_idx(idx))
+	{
 		::Render->hud_lens_skip_xform = nullptr;
+		::Render->hud_lens_count = 0;
+	}
 
 	m_attached_items[idx]->m_parent_hud_item->on_b_hud_detach();
 	m_attached_items[idx] = NULL;

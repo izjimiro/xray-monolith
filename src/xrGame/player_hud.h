@@ -485,6 +485,10 @@ public:
 	void set_sight_mount(u16 slot, const Fvector& pos, const Fvector& rot);
 	void apply_adjust_to_items();
 	bool m_adjust_freeze_aim = false; // editor: keep the weapon where it is while a sight is moved
+
+	// addition scopes: 3D scope lens params per sight (0 - main scope, 1 - addition), set from scripts
+	Fvector4 m_lens_params[2][6]; // s3ds_param_1..4, markswitch color, (markswitch current, count)
+	bool m_lens_set[2] = { false, false };
 	float m_adjust_scale;
 	bool m_adjust_mode;
 	u16 m_edit_bone;

@@ -28,11 +28,63 @@ ICF float calcLOD(float ssa/*fDistSq*/, float R)
 	return _sqrt(clampr((ssa - r_ssaGLOD_end) / (r_ssaGLOD_start - r_ssaGLOD_end), 0.f, 1.f));
 }
 
+#if defined(USE_DX11)
+extern Fvector4 ps_s3ds_param_1;
+extern Fvector4 ps_s3ds_param_2;
+extern Fvector4 ps_s3ds_param_3;
+extern Fvector4 ps_s3ds_param_4;
+extern int ps_markswitch_current;
+extern int ps_markswitch_count;
+extern Fvector4 ps_markswitch_color;
+
+// addition scopes: per sight 3D scope lens parameters
+namespace
+{
+	struct lens_globals
+	{
+		Fvector4 s3ds[4];
+		Fvector4 ms_color;
+		int ms_current, ms_count;
+
+		void save()
+		{
+			s3ds[0] = ps_s3ds_param_1; s3ds[1] = ps_s3ds_param_2; s3ds[2] = ps_s3ds_param_3; s3ds[3] = ps_s3ds_param_4;
+			ms_color = ps_markswitch_color; ms_current = ps_markswitch_current; ms_count = ps_markswitch_count;
+		}
+		void restore() const
+		{
+			ps_s3ds_param_1 = s3ds[0]; ps_s3ds_param_2 = s3ds[1]; ps_s3ds_param_3 = s3ds[2]; ps_s3ds_param_4 = s3ds[3];
+			ps_markswitch_color = ms_color; ps_markswitch_current = ms_current; ps_markswitch_count = ms_count;
+		}
+	};
+
+	const IRender_interface::hud_lens_params* find_hud_lens(const Fmatrix* m)
+	{
+		for (u32 i = 0; i < RImplementation.hud_lens_count && i < 2; ++i)
+			if (RImplementation.hud_lens[i].xform == m)
+				return &RImplementation.hud_lens[i];
+		return nullptr;
+	}
+
+	void apply_hud_lens(const IRender_interface::hud_lens_params& p)
+	{
+		ps_s3ds_param_1 = p.s3ds[0]; ps_s3ds_param_2 = p.s3ds[1]; ps_s3ds_param_3 = p.s3ds[2]; ps_s3ds_param_4 = p.s3ds[3];
+		ps_markswitch_color = p.ms_color; ps_markswitch_current = p.ms_current; ps_markswitch_count = p.ms_count;
+	}
+}
+#endif
+
 template<typename T, bool Reverse>
 void CDSGraphManager::r_dsgraph_render_graph_sorted(R_dsgraph::mapDSGraphItems<T, Reverse>& graph, bool _clear)
 {
     if (graph.empty())
         return;
+
+#if defined(USE_DX11)
+	const bool per_lens = RImplementation.hud_lens_count > 0;
+	lens_globals saved;
+	bool lens_touched = false;
+#endif
 
     std::sort(graph.begin(), graph.end());
 
@@ -40,6 +92,21 @@ void CDSGraphManager::r_dsgraph_render_graph_sorted(R_dsgraph::mapDSGraphItems<T
 	{
 		dxRender_Visual* V = item.pVisual;
 		VERIFY(V && V->shader._get());
+#if defined(USE_DX11)
+		if (per_lens && item.pSE->flags.iScopeLense)
+		{
+			if (!lens_touched)
+			{
+				saved.save();
+				lens_touched = true;
+			}
+			if (const IRender_interface::hud_lens_params* lp = find_hud_lens(item.pMatrix))
+				apply_hud_lens(*lp);
+			else
+				saved.restore();
+			RCache.set_Constants((R_constant_table*)0); // re-run the constant setups for this item
+		}
+#endif
 		RCache.set_Element(item.pSE);
 		RCache.set_xform_world(*item.pMatrix);
 		RImplementation.apply_object(item.pObject);
@@ -53,6 +120,14 @@ void CDSGraphManager::r_dsgraph_render_graph_sorted(R_dsgraph::mapDSGraphItems<T
 
 	if (_clear)
 		graph.clear();
+
+#if defined(USE_DX11)
+	if (lens_touched)
+	{
+		saved.restore();
+		RCache.set_Constants((R_constant_table*)0);
+	}
+#endif
 
 	RCache.set_xform_world(Fidentity);
 }

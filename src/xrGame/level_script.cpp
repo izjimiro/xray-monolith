@@ -1763,6 +1763,23 @@ LPCSTR vid_modes_string()
 	return resolutions.c_str();
 }
 
+// addition scopes: 3D scope lens params per sight. slot: 0 - main scope, 1 - addition;
+// idx: 1..4 - s3ds_param_1..4, 5 - markswitch color, 6 - (markswitch current, count, 0, 0)
+void set_hud_lens_param(int slot, int idx, float x, float y, float z, float w)
+{
+	if (!g_player_hud || slot < 0 || slot > 1 || idx < 1 || idx > 6)
+		return;
+	g_player_hud->m_lens_params[slot][idx - 1].set(x, y, z, w);
+	g_player_hud->m_lens_set[slot] = true;
+}
+
+void clear_hud_lens_params()
+{
+	if (!g_player_hud)
+		return;
+	g_player_hud->m_lens_set[0] = g_player_hud->m_lens_set[1] = false;
+}
+
 u32 PlayHudMotion(u8 hand, LPCSTR itm_name, LPCSTR anm_name, bool bMixIn = true, float speed = 1.f)
 {
 	return g_player_hud->script_anim_play(hand, itm_name, anm_name, bMixIn, speed);
@@ -2790,6 +2807,8 @@ void CLevel::script_register(lua_State* L)
 			def("game_id", &GameID),
 			def("ray_pick", &ray_pick),
 
+			def("set_hud_lens_param", &set_hud_lens_param),
+			def("clear_hud_lens_params", &clear_hud_lens_params),
 			def("press_action", &LevelPressAction),
 			def("release_action", &LevelReleaseAction),
 			def("hold_action", &LevelHoldAction),
