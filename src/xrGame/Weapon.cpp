@@ -455,23 +455,30 @@ void CWeapon::SetUIScope(LPCSTR scope_texture)
 BOOL useSeparateUBGLKeybind = TRUE;
 void CWeapon::SwitchZoomType()
 {
-	// addition scope: the alternative aim key switches main <-> addition
-	if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT)
+	// addition scope: main -> addition -> (alt aim / GL as usual) -> main
+	if (m_zoomtype == 0 && IsAdditionalSightUsable())
 	{
-		SetZoomTypeAndParams(0);
+		SetZoomType(ZOOM_TYPE_ADD_SIGHT);
 		UpdateUIScope();
 		return;
 	}
-	if (m_zoomtype != 2 && IsAdditionalSightUsable())
+	const bool from_add = (m_zoomtype == ZOOM_TYPE_ADD_SIGHT);
+	const bool alt_available = m_altAimPos || g_player_hud->m_adjust_mode || (m_modular_attachments && IsScopeAttached() && READ_IF_EXISTS(pSettings, r_bool, GetScopeName(), "use_alt_aim_hud", false));
+	if (from_add && !alt_available)
 	{
-		SetZoomType(ZOOM_TYPE_ADD_SIGHT);
+		SetZoomTypeAndParams(0);
+		if (!useSeparateUBGLKeybind && IsGrenadeLauncherAttached())
+		{
+			ToggleGrenadeLauncher();
+			return;
+		}
 		UpdateUIScope();
 		return;
 	}
 
 	if (!useSeparateUBGLKeybind)
     {
-		if (m_zoomtype == 0 && (m_altAimPos || g_player_hud->m_adjust_mode || (m_modular_attachments && IsScopeAttached() && READ_IF_EXISTS(pSettings, r_bool, GetScopeName(), "use_alt_aim_hud", false))))
+		if ((m_zoomtype == 0 || from_add) && alt_available)
 		{
             SetZoomTypeAndParams(1);
 		}
@@ -489,7 +496,7 @@ void CWeapon::SwitchZoomType()
 	}
     else
     {
-		if (m_zoomtype == 0 && (m_altAimPos || g_player_hud->m_adjust_mode || (m_modular_attachments && IsScopeAttached() && READ_IF_EXISTS(pSettings, r_bool, GetScopeName(), "use_alt_aim_hud", false))))
+		if ((m_zoomtype == 0 || from_add) && alt_available)
 		{
 			SetZoomTypeAndParams(1);
 		}
@@ -3678,9 +3685,7 @@ void CWeapon::AttachAddSightHud()
 	if (m_addSightItem)
 	{
 		// sight changed?
-		CHudItem* hud_item = m_addSightItem;
-		LPCSTR hud = READ_IF_EXISTS(pSettings, r_string, m_addSightSect, "hud", NULL);
-		if (!hud || xr_strcmp(hud_item->HudSection().c_str(), hud))
+		if (m_addSightItemSect != m_addSightSect)
 		{
 			g_player_hud->detach_item(m_addSightItem);
 			xr_delete(m_addSightItem);
@@ -3698,6 +3703,7 @@ void CWeapon::AttachAddSightHud()
 		}
 		m_addSightItem = xr_new<CAnonHudItem>();
 		m_addSightItem->Load(m_addSightSect.c_str());
+		m_addSightItemSect = m_addSightSect;
 	}
 
 	attachable_hud_item* hi = m_addSightItem->HudItemData();

@@ -1057,7 +1057,7 @@ void player_hud::render_hud(IDSGraphManager* DM)
 		m_attached_items[SCOPE_ATTACH_IDX]->render(DM);
 
 	if (m_attached_items[ADD_SIGHT_ATTACH_IDX])
-		m_attached_items[ADD_SIGHT_ATTACH_IDX]->render();
+		m_attached_items[ADD_SIGHT_ATTACH_IDX]->render(DM);
 
 	if (script_anim_item_model)
 	{

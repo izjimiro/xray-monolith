@@ -63,7 +63,16 @@ jobs:
         msbuild-architecture: "x64"
 
     - name: Build ${{matrix.buildconf}}
-      run: msbuild /p:Configuration=${{matrix.buildconf}} ${{env.SOLUTION_FILE_PATH}}
+      run: msbuild /p:Configuration=${{matrix.buildconf}} ${{env.SOLUTION_FILE_PATH}} -fl "-flp:logfile=build.log;verbosity=minimal"
+
+    - name: Report build errors
+      if: failure()
+      shell: pwsh
+      run: |
+        if (Test-Path build.log) {
+          Select-String -Path build.log -Pattern ": (fatal )?error " | Select-Object -First 40 | ForEach-Object { Write-Output ("::error::" + $_.Line.Trim()) }
+          Get-Content build.log -Tail 30 | ForEach-Object { Write-Output ("::warning::" + $_) }
+        }
 
     - name: Upload Exe
       uses: actions/upload-artifact@v4.6.0

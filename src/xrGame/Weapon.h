@@ -184,6 +184,7 @@ protected:
 
 	// ---- addition scope (second sight mounted on the MAS main scope) ----
 	CAnonHudItem* m_addSightItem = NULL;
+	shared_str m_addSightItemSect; // section m_addSightItem was loaded from
 	void AttachAddSightHud();
 	void DetachAddSightHud();
 	void SyncAddSightToServer();

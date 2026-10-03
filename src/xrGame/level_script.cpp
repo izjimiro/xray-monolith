@@ -1700,6 +1700,17 @@ void hud_adj_drag_sight(int slot, int mode, float dx, float dy)
 
 void hud_adj_state(bool state)
 {
+	// addition scope: start from its configured place instead of zeros
+	if (state && !g_player_hud->m_adjust_mode)
+	{
+		if (attachable_hud_item* add = g_player_hud->attached_item(ADD_SIGHT_ATTACH_IDX))
+		{
+			g_player_hud->m_adjust_addition[0][0] = add->m_addition_mount[0];
+			g_player_hud->m_adjust_addition[1][0] = add->m_addition_mount[1];
+			g_player_hud->m_adjust_addition[0][1] = add->m_addition_aim[0];
+			g_player_hud->m_adjust_addition[1][1] = add->m_addition_aim[1];
+		}
+	}
 	g_player_hud->m_adjust_mode = state;
 }
 
