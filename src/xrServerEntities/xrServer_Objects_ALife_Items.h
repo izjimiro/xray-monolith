@@ -185,6 +185,7 @@ SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemWeapon, CSE_ALifeItem)
 	u8 m_bZoom;
 	u32 m_ef_main_weapon_type;
 	u32 m_ef_weapon_type;
+	shared_str m_add_sight; // addition scope section (second sight on the MAS main scope)
 
 	CSE_ALifeItemWeapon(LPCSTR caSection);
 	virtual ~CSE_ALifeItemWeapon();
@@ -198,6 +199,8 @@ SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemWeapon, CSE_ALifeItem)
 	void set_ammo_elapsed(u16 count);
 	u16 get_ammo_magsize();
 	void clone_addons(CSE_ALifeItemWeapon* parent);
+	LPCSTR get_additional_sight() const { return m_add_sight.size() ? m_add_sight.c_str() : ""; }
+	void set_additional_sight(LPCSTR sect) { m_add_sight = (sect && sect[0]) ? sect : ""; }
 
 	void clone_upgrades(CSE_ALifeItemWeapon* parent);
 

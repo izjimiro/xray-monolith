@@ -1256,6 +1256,11 @@ void CUIActorMenu::PropertiesBoxForWeapon(CUICellItem* cell_item, PIItem item, b
 		{
 		}
 	}
+	if (pWeapon->HasAdditionalSight())
+	{
+		m_UIPropertiesBox->AddItem("st_detach_add_sight", NULL, INVENTORY_DETACH_ADD_SIGHT);
+		b_show = true;
+	}
 	if (pWeapon->SilencerAttachable())
 	{
 		if (pWeapon->IsSilencerAttached())
@@ -1305,6 +1310,22 @@ void CUIActorMenu::PropertiesBoxForAddon(PIItem item, bool& b_show)
 	PIItem item_in_slot_3 = inv->ItemFromSlot(INV_SLOT_3);
 
 	if (!item_in_slot_2 && !item_in_slot_3) return;
+
+	// additional sights
+	{
+		const char* sect = item->object().cNameSect().c_str();
+		PIItem slots[2] = { item_in_slot_2, item_in_slot_3 };
+		for (int i = 0; i < 2; ++i)
+		{
+			CWeapon* wpn = smart_cast<CWeapon*>(slots[i]);
+			if (!wpn || wpn->HasAdditionalSight() || !wpn->IsAdditionalSightAllowed(sect))
+				continue;
+			shared_str str = CStringTable().translate("st_attach_add_sight_to");
+			str.printf("%s %s", str.c_str(), slots[i]->m_name.c_str());
+			m_UIPropertiesBox->AddItem(str.c_str(), (void*)slots[i], INVENTORY_ATTACH_ADD_SIGHT);
+			b_show = true;
+		}
+	}
 
 	if (pScope)
 	{
@@ -1842,6 +1863,34 @@ void CUIActorMenu::ProcessPropertiesBoxClicked(CUIWindow* w, void* d)
 				{
 					DetachAddon(wpn->GetScopeName().c_str(), child_iitm);
 				}
+			}
+		}
+		break;
+	case INVENTORY_ATTACH_ADD_SIGHT:
+		{
+			PIItem addon = CurrentIItem();
+			CWeapon* wpn = smart_cast<CWeapon*>((PIItem)(m_UIPropertiesBox->GetClickedItem()->GetData()));
+			if (addon && wpn && wpn->AttachAdditionalSight(addon->object().cNameSect().c_str()))
+			{
+				PlaySnd(eAttachAddon);
+				if (m_currMenuMode == mmDeadBodySearch)
+					RemoveItemFromList(m_pDeadBodyBagList, addon);
+				addon->object().DestroyObject();
+				SetCurrentItem(NULL);
+			}
+			break;
+		}
+	case INVENTORY_DETACH_ADD_SIGHT:
+		if (weapon)
+		{
+			PlaySnd(eDetachAddon);
+			weapon->DetachAdditionalSight(true);
+			for (u32 i = 0; i < cell_item->ChildsCount(); ++i)
+			{
+				CUICellItem* child_itm = cell_item->Child(i);
+				CWeapon* wpn = smart_cast<CWeapon*>((PIItem)(child_itm->m_pData));
+				if (wpn)
+					wpn->DetachAdditionalSight(true);
 			}
 		}
 		break;

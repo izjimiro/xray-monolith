@@ -135,7 +135,7 @@ Fvector& attachable_hud_item::hands_offset_rot()
 
 Fvector& attachable_hud_item::aim_offset_pos()
 {
-	if (g_player_hud->m_adjust_mode) {
+	if (g_player_hud->m_adjust_mode && m_attach_place_idx != ADD_SIGHT_ATTACH_IDX) {
 		if (m_attach_place_idx == SCOPE_ATTACH_IDX)
 			return g_player_hud->m_adjust_offset[0][8];
 		return g_player_hud->m_adjust_offset[0][1];
@@ -145,7 +145,7 @@ Fvector& attachable_hud_item::aim_offset_pos()
 
 Fvector& attachable_hud_item::aim_offset_rot()
 {
-	if (g_player_hud->m_adjust_mode) {
+	if (g_player_hud->m_adjust_mode && m_attach_place_idx != ADD_SIGHT_ATTACH_IDX) {
 		if (m_attach_place_idx == SCOPE_ATTACH_IDX)
 			return g_player_hud->m_adjust_offset[1][8];
 		return g_player_hud->m_adjust_offset[1][1];
@@ -208,6 +208,50 @@ float attachable_hud_item::attach_scale()
 	return m_measures.m_attach_scale;
 }
 
+// addition scope: mount on the main scope and aim fine tune (hud_adjust slots 13 / 14 in adjust mode)
+Fvector& attachable_hud_item::addition_mount_pos()
+{
+	return g_player_hud->m_adjust_mode ? g_player_hud->m_adjust_addition[0][0] : m_addition_mount[0];
+}
+
+Fvector& attachable_hud_item::addition_mount_rot()
+{
+	return g_player_hud->m_adjust_mode ? g_player_hud->m_adjust_addition[1][0] : m_addition_mount[1];
+}
+
+Fvector& attachable_hud_item::addition_aim_pos()
+{
+	return g_player_hud->m_adjust_mode ? g_player_hud->m_adjust_addition[0][1] : m_addition_aim[0];
+}
+
+Fvector& attachable_hud_item::addition_aim_rot()
+{
+	return g_player_hud->m_adjust_mode ? g_player_hud->m_adjust_addition[1][1] : m_addition_aim[1];
+}
+
+// same rotation order as the MAS mount and the hud aim offset: X, then Y, then Z
+void hud_build_mount_xform(const Fvector& rot, const Fvector& pos, Fmatrix& dest)
+{
+	Fmatrix r;
+	dest.identity();
+	dest.rotateX(rot.x);
+	r.identity();
+	r.rotateY(rot.y);
+	dest.mulA_43(r);
+	r.identity();
+	r.rotateZ(rot.z);
+	dest.mulA_43(r);
+	dest.translate_over(pos);
+}
+
+// inverse of hud_build_mount_xform for the rotation part
+void hud_decompose_rot(const Fmatrix& m, Fvector& rot)
+{
+	rot.x = atan2f(m.j.z, m.k.z);
+	rot.y = asinf(clampr(-m.i.z, -1.f, 1.f));
+	rot.z = atan2f(m.i.y, m.i.x);
+}
+
 void attachable_hud_item::set_bone_visible(const shared_str& bone_name, BOOL bVisibility, BOOL bSilent)
 {
 	u16 bone_id;
@@ -256,6 +300,19 @@ void attachable_hud_item::update(bool bForce)
 
 		hud_rotation.translate_over(m_parent->attached_item(0)->attach_mount_offset_pos());
 		m_item_transform.mulB_43(hud_rotation);
+	}
+	else if (m_attach_place_idx == ADD_SIGHT_ATTACH_IDX) {
+		// on the main scope; the scope model is scaled by attach_scale, so is the point on it
+		// (the scope slot is updated before this one, see player_hud::update)
+		attachable_hud_item* wpn = m_parent->attached_item(0);
+		attachable_hud_item* scope = m_parent->attached_item(SCOPE_ATTACH_IDX);
+		if (scope && wpn) {
+			Fmatrix mount;
+			Fvector pos;
+			pos.mul(addition_mount_pos(), wpn->attach_scale());
+			hud_build_mount_xform(addition_mount_rot(), pos, mount);
+			m_item_transform.mul_43(scope->m_item_transform, mount);
+		}
 	}
 	else {
 		m_parent->calc_transform(m_attach_place_idx, m_attach_offset, m_item_transform, m_measures.m_bLeadGunLeftHand);
@@ -604,7 +661,7 @@ void attachable_hud_item::load(const shared_str& sect_name)
             pVisual->MarkIgnoreOptimization(TRUE);
     }    
 
-	m_attach_place_idx = pSettings->r_u16(sect_name, "attach_place_idx");
+	m_attach_place_idx = READ_IF_EXISTS(pSettings, r_u16, sect_name, "attach_place_idx", 0);
 	m_measures.load(sect_name, m_model);
 	m_hand_motions = m_parent->get_hand_motions(*sect_name);
 
@@ -647,7 +704,7 @@ u32 attachable_hud_item::anim_play(const shared_str& anm_name_b, BOOL bMixIn, co
         final_anim_speed = speed;
 
 	u32 ret = 0;
-	if (m_attach_place_idx != SCOPE_ATTACH_IDX) {
+	if (!is_sight_attach_idx(m_attach_place_idx)) {
 		ret = g_player_hud->anim_play(m_attach_place_idx, M.mid, bMixIn, md, speed);
 	}
 
@@ -673,7 +730,7 @@ u32 attachable_hud_item::anim_play(const shared_str& anm_name_b, BOOL bMixIn, co
 		CBoneInstance& root_binst = m_model->LL_GetBoneInstance(root_id);
 		root_binst.set_callback_overwrite(TRUE);
 		root_binst.mTransform.identity();
-		if (m_attach_place_idx == SCOPE_ATTACH_IDX) {
+		if (is_sight_attach_idx(m_attach_place_idx) && m_parent->attached_item(0)) {
 			float s = m_parent->attached_item(0)->attach_scale();
 			root_binst.mTransform.scale(s, s, s);
 		}
@@ -685,7 +742,7 @@ u32 attachable_hud_item::anim_play(const shared_str& anm_name_b, BOOL bMixIn, co
 		m_model->CalculateBones_Invalidate();
 	}
 
-	if (m_attach_place_idx == SCOPE_ATTACH_IDX) {
+	if (is_sight_attach_idx(m_attach_place_idx)) {
 		return ret;
 	}
 
@@ -726,6 +783,10 @@ player_hud::player_hud()
 	m_attached_items[0] = nullptr;
 	m_attached_items[1] = nullptr;
 	m_attached_items[SCOPE_ATTACH_IDX] = nullptr;
+	m_attached_items[ADD_SIGHT_ATTACH_IDX] = nullptr;
+	for (int i = 0; i < 2; ++i)
+		for (int j = 0; j < 2; ++j)
+			m_adjust_addition[i][j].set(0.f, 0.f, 0.f);
 	m_attach_offset.identity();
 	m_attach_offset_2.identity();
 	m_transform.identity();
@@ -941,6 +1002,9 @@ bool player_hud::render_item_ui_query()
 	if (m_attached_items[SCOPE_ATTACH_IDX])
 		res |= m_attached_items[SCOPE_ATTACH_IDX]->render_item_ui_query();
 
+	if (m_attached_items[ADD_SIGHT_ATTACH_IDX])
+		res |= m_attached_items[ADD_SIGHT_ATTACH_IDX]->render_item_ui_query();
+
 	return res;
 }
 
@@ -958,6 +1022,9 @@ void player_hud::render_item_ui()
 
 	if (m_attached_items[SCOPE_ATTACH_IDX])
 		m_attached_items[SCOPE_ATTACH_IDX]->render_item_ui();
+
+	if (m_attached_items[ADD_SIGHT_ATTACH_IDX])
+		m_attached_items[ADD_SIGHT_ATTACH_IDX]->render_item_ui();
 
 	UIRender->CacheSetCullMode(IUIRender::cmCCW);
 	UI().m_currentPointType = bk;
@@ -988,6 +1055,9 @@ void player_hud::render_hud(IDSGraphManager* DM)
 
 	if (m_attached_items[SCOPE_ATTACH_IDX])
 		m_attached_items[SCOPE_ATTACH_IDX]->render(DM);
+
+	if (m_attached_items[ADD_SIGHT_ATTACH_IDX])
+		m_attached_items[ADD_SIGHT_ATTACH_IDX]->render();
 
 	if (script_anim_item_model)
 	{
@@ -1359,6 +1429,9 @@ void player_hud::update(const Fmatrix& cam_trans)
 
 	if (m_attached_items[SCOPE_ATTACH_IDX])
 		m_attached_items[SCOPE_ATTACH_IDX]->update(true);
+
+	if (m_attached_items[ADD_SIGHT_ATTACH_IDX])
+		m_attached_items[ADD_SIGHT_ATTACH_IDX]->update(true);
 
 	if (script_anim_item_attached && script_anim_item_model)
 		update_script_item();
@@ -1915,6 +1988,11 @@ void player_hud::OnMovementChanged(ACTOR_DEFS::EMoveCommand cmd)
 			if (m_attached_items[SCOPE_ATTACH_IDX]->m_parent_hud_item->GetState() == CHUDState::eIdle)
 				m_attached_items[SCOPE_ATTACH_IDX]->m_parent_hud_item->PlayAnimIdle();
 		}
+		if (m_attached_items[ADD_SIGHT_ATTACH_IDX])
+		{
+			if (m_attached_items[ADD_SIGHT_ATTACH_IDX]->m_parent_hud_item->GetState() == CHUDState::eIdle)
+				m_attached_items[ADD_SIGHT_ATTACH_IDX]->m_parent_hud_item->PlayAnimIdle();
+		}
 	}
 	else
 	{
@@ -1926,6 +2004,9 @@ void player_hud::OnMovementChanged(ACTOR_DEFS::EMoveCommand cmd)
 
 		if (m_attached_items[SCOPE_ATTACH_IDX])
 			m_attached_items[SCOPE_ATTACH_IDX]->m_parent_hud_item->OnMovementChanged(cmd);
+
+		if (m_attached_items[ADD_SIGHT_ATTACH_IDX])
+			m_attached_items[ADD_SIGHT_ATTACH_IDX]->m_parent_hud_item->OnMovementChanged(cmd);
 	}
 
 	::luabind::functor<void> func;
@@ -2056,6 +2137,9 @@ void player_hud::OnFrame()
 			CHudItem* parent = m_attached_items[SCOPE_ATTACH_IDX]->m_parent_hud_item;
 			m_attached_items[SCOPE_ATTACH_IDX]->m_item_transform.mulB_43(nearwall_0);
 		}
+
+		if (m_attached_items[ADD_SIGHT_ATTACH_IDX])
+			m_attached_items[ADD_SIGHT_ATTACH_IDX]->m_item_transform.mulB_43(nearwall_0);
 	}
 }
 
@@ -2069,4 +2153,185 @@ void player_hud::net_Relcase(CObject* obj)
 
 	if (m_attached_items[SCOPE_ATTACH_IDX])
 		m_attached_items[SCOPE_ATTACH_IDX]->m_parent_hud_item->net_Relcase(obj);
+
+	if (m_attached_items[ADD_SIGHT_ATTACH_IDX])
+		m_attached_items[ADD_SIGHT_ATTACH_IDX]->m_parent_hud_item->net_Relcase(obj);
+}
+
+//////////////////////////////////////////////////////////////////////////
+// 3D sight editor helpers (hud adjust mode)
+//////////////////////////////////////////////////////////////////////////
+#include "../Include/xrRender/RenderVisual.h"
+#include "../xrEngine/vis_common.h"
+
+static bool hud_project_ui(const Fvector& p, Fvector2& ui)
+{
+	Fvector4 v;
+	Device.mFullTransformHud.transform(v, p);
+	if (v.w <= EPS_S)
+		return false;
+	ui.set((v.x + 1.f) * 0.5f * UI_BASE_WIDTH, (1.f - v.y) * 0.5f * UI_BASE_HEIGHT);
+	return true;
+}
+
+bool player_hud::sight_screen_rect(u16 slot, Fvector2& mn, Fvector2& mx)
+{
+	if (slot >= HUD_ATTACH_SLOTS)
+		return false;
+	attachable_hud_item* it = m_attached_items[slot];
+	if (!it || !it->m_model)
+		return false;
+	IRenderVisual* vis = it->m_model->dcast_RenderVisual();
+	if (!vis)
+		return false;
+
+	Fbox box = vis->getVisData().box;
+	float s = 1.f;
+	if (is_sight_attach_idx(slot) && m_attached_items[0])
+		s = m_attached_items[0]->attach_scale(); // root bone of the sight models is scaled
+
+	mn.set(flt_max, flt_max);
+	mx.set(-flt_max, -flt_max);
+	for (int i = 0; i < 8; ++i)
+	{
+		Fvector c, w;
+		box.getpoint(i, c);
+		c.mul(s);
+		it->m_item_transform.transform_tiny(w, c);
+		Fvector2 ui;
+		if (!hud_project_ui(w, ui))
+			return false;
+		mn.x = _min(mn.x, ui.x);
+		mn.y = _min(mn.y, ui.y);
+		mx.x = _max(mx.x, ui.x);
+		mx.y = _max(mx.y, ui.y);
+	}
+	return true;
+}
+
+int player_hud::pick_sight(float x, float y)
+{
+	int best = -1;
+	float best_area = flt_max;
+	const u16 slots[] = { ADD_SIGHT_ATTACH_IDX, SCOPE_ATTACH_IDX };
+	for (u16 slot : slots)
+	{
+		Fvector2 mn, mx;
+		if (!sight_screen_rect(slot, mn, mx))
+			continue;
+		if (x < mn.x || x > mx.x || y < mn.y || y > mx.y)
+			continue;
+		const float area = (mx.x - mn.x) * (mx.y - mn.y);
+		if (area < best_area)
+		{
+			best_area = area;
+			best = slot;
+		}
+	}
+	return best;
+}
+
+// mode: 0 - move in the screen plane, 1 - move along the view (dy), 2 - rotate (yaw dx / pitch dy), 3 - roll (dx)
+// dx, dy - cursor delta in UI units
+void player_hud::drag_sight(u16 slot, int mode, float dx, float dy)
+{
+	if (!m_adjust_mode)
+		return;
+	attachable_hud_item* wpn = m_attached_items[0];
+	if (!wpn || slot >= HUD_ATTACH_SLOTS || !m_attached_items[slot])
+		return;
+
+	Fmatrix parent;
+	float scale = 1.f;
+	Fvector* pos;
+	Fvector* rot;
+	if (slot == SCOPE_ATTACH_IDX)
+	{
+		parent.set(wpn->m_item_transform);
+		pos = &m_adjust_offset[0][7];
+		rot = &m_adjust_offset[1][7];
+	}
+	else if (slot == ADD_SIGHT_ATTACH_IDX)
+	{
+		attachable_hud_item* scope = m_attached_items[SCOPE_ATTACH_IDX];
+		if (!scope)
+			return;
+		parent.set(scope->m_item_transform);
+		scale = wpn->attach_scale();
+		pos = &m_adjust_addition[0][0];
+		rot = &m_adjust_addition[1][0];
+	}
+	else
+		return;
+
+	if (scale < EPS_L)
+		scale = 1.f;
+
+	// rotation part of the parent
+	Fmatrix prot;
+	prot.set(parent);
+	prot.c.set(0.f, 0.f, 0.f);
+	prot.i.normalize_safe();
+	prot.j.normalize_safe();
+	prot.k.normalize_safe();
+	Fmatrix pinv;
+	pinv.invert(prot);
+
+	const Fvector& right = Device.vCameraRight;
+	const Fvector& up = Device.vCameraTop;
+	const Fvector& dir = Device.vCameraDirection;
+
+	Fvector to_item;
+	to_item.sub(m_attached_items[slot]->m_item_transform.c, Device.vCameraPosition);
+	const float depth = _max(0.05f, to_item.dotproduct(dir));
+	const float kx = 2.f * depth / (_abs(Device.mProjectHud._11) * UI_BASE_WIDTH);
+	const float ky = 2.f * depth / (_abs(Device.mProjectHud._22) * UI_BASE_HEIGHT);
+	const float krot = PI / 720.f; // 0.25 deg per UI pixel
+
+	switch (mode)
+	{
+	case 0:
+	case 1:
+		{
+			Fvector d;
+			d.set(0.f, 0.f, 0.f);
+			if (mode == 0)
+			{
+				d.mad(right, dx * kx);
+				d.mad(up, -dy * ky);
+			}
+			else
+				d.mad(dir, -dy * ky);
+
+			Fvector l;
+			pinv.transform_dir(l, d);
+			l.div(scale);
+			pos->add(l);
+		}
+		break;
+	case 2:
+	case 3:
+		{
+			Fmatrix rdelta;
+			if (mode == 2)
+			{
+				Fmatrix ry, rx;
+				ry.rotation(up, dx * krot);
+				rx.rotation(right, dy * krot);
+				rdelta.mul_43(ry, rx);
+			}
+			else
+				rdelta.rotation(dir, dx * krot);
+
+			Fmatrix local, m1, m2, m3;
+			hud_build_mount_xform(*rot, Fvector().set(0.f, 0.f, 0.f), local);
+			m1.mul_43(prot, local);
+			m2.mul_43(rdelta, m1);
+			m3.mul_43(pinv, m2);
+			hud_decompose_rot(m3, *rot);
+		}
+		break;
+	default:
+		break;
+	}
 }

@@ -82,6 +82,8 @@ void CSE_ALifeItemWeapon::script_register(lua_State* L)
 		.def("set_ammo_elapsed", &CSE_ALifeItemWeapon::set_ammo_elapsed)
 		.def("get_ammo_elapsed", &CSE_ALifeItemWeapon::get_ammo_elapsed)
 		.def("get_ammo_magsize", &CSE_ALifeItemWeapon::get_ammo_magsize)
+		.def("get_addition_scope", &CSE_ALifeItemWeapon::get_additional_sight)
+		.def("set_addition_scope", &CSE_ALifeItemWeapon::set_additional_sight)
 	];
 }
 

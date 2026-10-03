@@ -1603,6 +1603,9 @@ void reload_language()
 
 void hud_adj_offs(int off, int idx, float x, float y, float z)
 {
+	if (off < 0 || off > 1)
+		return;
+
 	// Script UI
 	if (idx == 20)
 	{
@@ -1624,8 +1627,14 @@ void hud_adj_offs(int off, int idx, float x, float y, float z)
 		g_player_hud->m_adjust_obj[off].set(x, y, z);
 	}
 
+	// Addition scope: 13 = mount on the main scope, 14 = aim fine tune
+	else if (idx == 13 || idx == 14)
+	{
+		g_player_hud->m_adjust_addition[off][idx - 13].set(x, y, z);
+	}
+
 	// Hud offsets
-	else
+	else if (idx >= 0 && idx < 10)
 		g_player_hud->m_adjust_offset[off][idx].set(x, y, z);
 }
 
@@ -1642,6 +1651,51 @@ void hud_adj_value(LPCSTR name, float val)
 		g_player_hud->m_adjust_zoom_factor[2] = val;
 	else if (0 == xr_strcmp(name, "attach_scale"))
 		g_player_hud->m_adjust_scale = val;
+
+}
+
+// current hud adjust vector (same indices as hud_adj_offs)
+Fvector hud_adj_get_offs(int off, int idx)
+{
+	Fvector r = { 0.f, 0.f, 0.f };
+	if (off < 0 || off > 1)
+		return r;
+	if (idx == 10 || idx == 11)
+		return g_player_hud->m_adjust_firepoint_shell[off][idx - 10];
+	if (idx == 12)
+		return g_player_hud->m_adjust_obj[off];
+	if (idx == 13 || idx == 14)
+		return g_player_hud->m_adjust_addition[off][idx - 13];
+	if (idx >= 0 && idx < 10)
+		return g_player_hud->m_adjust_offset[off][idx];
+	return r;
+}
+
+int hud_adj_pick_sight(float x, float y)
+{
+	return g_player_hud ? g_player_hud->pick_sight(x, y) : -1;
+}
+
+Fvector2 hud_adj_sight_rect_min(int slot)
+{
+	Fvector2 mn, mx;
+	if (g_player_hud && slot >= 0 && g_player_hud->sight_screen_rect(u16(slot), mn, mx))
+		return mn;
+	return Fvector2().set(-1.f, -1.f);
+}
+
+Fvector2 hud_adj_sight_rect_max(int slot)
+{
+	Fvector2 mn, mx;
+	if (g_player_hud && slot >= 0 && g_player_hud->sight_screen_rect(u16(slot), mn, mx))
+		return mx;
+	return Fvector2().set(-1.f, -1.f);
+}
+
+void hud_adj_drag_sight(int slot, int mode, float dx, float dy)
+{
+	if (g_player_hud && slot >= 0)
+		g_player_hud->drag_sight(u16(slot), mode, dx, dy);
 }
 
 void hud_adj_state(bool state)
@@ -2800,6 +2854,11 @@ void CLevel::script_register(lua_State* L)
 		def("enabled", hud_adj_state),
 		def("set_vector", hud_adj_offs),
 		def("set_value", hud_adj_value),
+		def("get_vector", hud_adj_get_offs),
+		def("pick_sight", hud_adj_pick_sight),
+		def("sight_rect_min", hud_adj_sight_rect_min),
+		def("sight_rect_max", hud_adj_sight_rect_max),
+		def("drag_sight", hud_adj_drag_sight),
 		def("remove_hud_model", remove_hud_model)
 	];
 

@@ -57,9 +57,11 @@ extern int g_nearwall;
 
 BOOL g_use_non_linear_inertia = TRUE;
 
+bool IsValidAddSightSection(LPCSTR sight, LPCSTR owner);
+
 float CWeapon::SDS_Radius(bool alt) {
 	// hack for GL to always return 0, fix later
-	if (m_zoomtype == 2)
+	if (m_zoomtype == 2 || m_zoomtype == ZOOM_TYPE_ADD_SIGHT)
 		return 0.0;
 
 	shared_str scope_tex_name;
@@ -129,6 +131,11 @@ CWeapon::CWeapon()
 	m_altAimPos = false;
 	m_zoomtype = 0;
 
+	m_addMount[0].set(0.f, 0.f, 0.f);
+	m_addMount[1].set(0.f, 0.f, 0.f);
+	m_addAim[0].set(0.f, 0.f, 0.f);
+	m_addAim[1].set(0.f, 0.f, 0.f);
+
 	m_pCurrentAmmo = NULL;
 
 	m_pFlameParticles2 = NULL;
@@ -165,6 +172,12 @@ CWeapon::CWeapon()
 extern int scope_2dtexactive; //crookr
 CWeapon::~CWeapon()
 {
+	if (m_addSightItem)
+	{
+		if (g_player_hud)
+			g_player_hud->detach_item(m_addSightItem);
+		xr_delete(m_addSightItem);
+	}
 	xr_delete(m_UIScope);
 	delete_data(m_scopes);
 }
@@ -326,6 +339,13 @@ void CWeapon::UpdateZoomParams() {
 		m_zoom_params.m_bUseDynamicZoom = m_zoom_params.m_bUseDynamicZoom_Alt || READ_IF_EXISTS(pSettings, r_bool, cNameSect(), "scope_dynamic_zoom_alt", false);
 		m_zoom_params.m_fScopeZoomFactor = (g_player_hud->m_adjust_mode ? g_player_hud->m_adjust_zoom_factor[2] : READ_IF_EXISTS(pSettings, r_float, cNameSect(), "scope_zoom_factor_alt", 0)) / (READ_IF_EXISTS(pSettings, r_string, cNameSect(), "scope_texture_alt", NULL) && zoomFlags.test(SDS_ZOOM) && (SDS_Radius(true) > 0.0) ? zoom_multiple : 1);
 		m_zoom_params.m_fZoomStepCount = 0;
+	} else if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT && m_addSightSect.size()) //Additional sight
+	{
+		LPCSTR sect = m_addSightSect.c_str();
+		m_zoom_params.m_fScopeZoomFactor = READ_IF_EXISTS(pSettings, r_float, sect, "scope_zoom_factor", m_zoom_params.m_fBaseZoomFactor);
+		m_zoom_params.m_bUseDynamicZoom = READ_IF_EXISTS(pSettings, r_bool, sect, "scope_dynamic_zoom", false);
+		m_zoom_params.m_fMinBaseZoomFactor = READ_IF_EXISTS(pSettings, r_float, sect, "min_scope_zoom_factor", 200.0f);
+		m_zoom_params.m_fZoomStepCount = READ_IF_EXISTS(pSettings, r_float, sect, "zoom_step_count", 0);
 	} else //Main Sight
 	{
 		m_zoom_params.m_bUseDynamicZoom = m_zoom_params.m_bUseDynamicZoom_Primary || READ_IF_EXISTS(pSettings, r_bool, cNameSect(), "scope_dynamic_zoom", false);
@@ -393,6 +413,11 @@ void CWeapon::UpdateUIScope()
 			}
 		}
 	}
+	else if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT)
+	{
+		LPCSTR tex = m_addSightSect.size() ? READ_IF_EXISTS(pSettings, r_string, m_addSightSect, "scope_texture", NULL) : NULL;
+		scope_tex_name = (tex && tex[0]) ? tex : NULL;
+	}
 	else if (m_zoomtype == 1)
 	{
 		if (!m_secondary_scope_tex_name) {
@@ -430,6 +455,20 @@ void CWeapon::SetUIScope(LPCSTR scope_texture)
 BOOL useSeparateUBGLKeybind = TRUE;
 void CWeapon::SwitchZoomType()
 {
+	// addition scope: the alternative aim key switches main <-> addition
+	if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT)
+	{
+		SetZoomTypeAndParams(0);
+		UpdateUIScope();
+		return;
+	}
+	if (m_zoomtype != 2 && IsAdditionalSightUsable())
+	{
+		SetZoomType(ZOOM_TYPE_ADD_SIGHT);
+		UpdateUIScope();
+		return;
+	}
+
 	if (!useSeparateUBGLKeybind)
     {
 		if (m_zoomtype == 0 && (m_altAimPos || g_player_hud->m_adjust_mode || (m_modular_attachments && IsScopeAttached() && READ_IF_EXISTS(pSettings, r_bool, GetScopeName(), "use_alt_aim_hud", false))))
@@ -497,6 +536,10 @@ void CWeapon::SetZoomType(u8 new_zoom_type)
 {
     int previous_zoom_type = m_zoomtype;
     m_zoomtype = new_zoom_type;
+
+	// the additional sight has its own night vision / alive detector
+	if ((previous_zoom_type == ZOOM_TYPE_ADD_SIGHT) != (m_zoomtype == ZOOM_TYPE_ADD_SIGHT) && IsZoomed())
+		RefreshZoomVision();
 
     ::luabind::functor<void> funct;
     if (ai().script_engine().functor("_G.CWeapon_OnSwitchZoomType", funct))
@@ -837,6 +880,7 @@ void CWeapon::Load(LPCSTR section)
 		m_bAutoSpawnAmmo = TRUE;
 
 	m_zoom_params.m_fSecondVPFovFactor = READ_IF_EXISTS(pSettings, r_float, section, "scope_lense_fov", 0.0f);
+
 	m_zoom_params.m_bHideCrosshairInZoom = true;
 
 	if (pSettings->line_exist(hud_sect, "zoom_hide_crosshair"))
@@ -1000,6 +1044,8 @@ BOOL CWeapon::net_Spawn(CSE_Abstract* DC)
 	
 	iAmmoElapsed = E->a_elapsed;
 	m_flagsAddOnState = E->m_addon_flags.get();
+
+	m_addSightSect = (E->m_add_sight.size() && pSettings->section_exist(E->m_add_sight)) ? E->m_add_sight : shared_str();
 	
 	if (m_modular_attachments && m_cur_scope == 0 && (m_flagsAddOnState & CSE_ALifeItemWeapon::eWeaponAddonScope) != 0 && m_scopes.size() > 1)
 	{
@@ -1335,6 +1381,7 @@ void CWeapon::UpdateCL()
 {
 	inherited::UpdateCL();
 	UpdateHUDAddonsVisibility();
+	SyncAddSightHud();
 	//ïîäñâåòêà îò âûñòðåëà
 	UpdateLight();
 
@@ -2093,18 +2140,23 @@ void CWeapon::OnZoomIn()
 	if (GetHUDmode())
 		GamePersistent().SetPickableEffectorDOF(true);
 
-	if (m_zoom_params.m_sUseBinocularVision.size() && IsScopeAttached() && NULL == m_zoom_params.m_pVision)
-		m_zoom_params.m_pVision = xr_new<CBinocularsVision>(m_zoom_params.m_sUseBinocularVision);
-
-	if (m_zoom_params.m_sUseZoomPostprocess.size() && IsScopeAttached())
 	{
-		CActor* pA = smart_cast<CActor *>(H_Parent());
-		if (pA)
+		const bool optic = (m_zoomtype == ZOOM_TYPE_ADD_SIGHT) ? IsAdditionalSightUsable() : IsScopeAttached();
+		shared_str vision = ZoomVisionSect();
+		shared_str pp = ZoomPostprocessSect();
+
+		if (vision.size() && optic && NULL == m_zoom_params.m_pVision)
+			m_zoom_params.m_pVision = xr_new<CBinocularsVision>(vision);
+
+		if (pp.size() && optic)
 		{
-			if (NULL == m_zoom_params.m_pNight_vision)
+			CActor* pA = smart_cast<CActor *>(H_Parent());
+			if (pA)
 			{
-				m_zoom_params.m_pNight_vision = xr_new<CNightVisionEffector>(
-					m_zoom_params.m_sUseZoomPostprocess);
+				if (NULL == m_zoom_params.m_pNight_vision)
+				{
+					m_zoom_params.m_pNight_vision = xr_new<CNightVisionEffector>(pp);
+				}
 			}
 		}
 	}
@@ -2428,6 +2480,11 @@ void CWeapon::UpdateHudAdditional(Fmatrix& trans)
 	attachable_hud_item* si = g_player_hud->attached_item(SCOPE_ATTACH_IDX);
 	R_ASSERT(hi);
 
+	ValidateAddSightZoom();
+	attachable_hud_item* asi = g_player_hud->attached_item(ADD_SIGHT_ATTACH_IDX);
+	if (asi && (!m_addSightItem || asi->m_parent_hud_item != m_addSightItem))
+		asi = nullptr;
+
 	u8 idx = GetCurrentHudOffsetIdx();
 
 	//============= Поворот ствола во время аима =============//
@@ -2435,7 +2492,47 @@ void CWeapon::UpdateHudAdditional(Fmatrix& trans)
 		Fvector curr_offs, curr_rot, curr_aim_rot;
 		curr_aim_rot.set(0, 0, 0);
 
-		if ((idx == 1 || idx == 3) && m_modular_attachments) {
+		if (idx == 1 && m_zoomtype == ZOOM_TYPE_ADD_SIGHT && asi && si) {
+			// aiming through the addition scope mounted on the main scope.
+			// For a non rotated addition this equals the MAS formula (base - mount + aim * scale),
+			// rotations of the main scope / addition are taken into account exactly (canted sights).
+			const float s = hi->attach_scale();
+
+			Fmatrix Ms, Ma, F;
+			hud_build_mount_xform(hi->attach_mount_offset_rot(), hi->attach_mount_offset_pos(), Ms);
+			Fvector add_pos;
+			add_pos.mul(asi->addition_mount_pos(), s);
+			hud_build_mount_xform(asi->addition_mount_rot(), add_pos, Ma);
+			F.mul_43(Ms, Ma); // addition -> weapon
+
+			// eye point of the addition in the weapon frame (MAS aim offset = minus the eye point)
+			Fvector eye_local, e;
+			eye_local.mul(asi->aim_offset_pos(), -s);
+			F.transform_tiny(e, eye_local);
+
+			Fmatrix Rbase, Frot, Finv, R;
+			hud_build_mount_xform(hi->attach_base_offset_rot(), Fvector().set(0.f, 0.f, 0.f), Rbase);
+			Frot.set(F);
+			Frot.c.set(0.f, 0.f, 0.f);
+			Finv.invert(Frot);
+			R.mul_43(Rbase, Finv);
+			hud_decompose_rot(R, curr_rot);
+
+			Fvector Re, Rbe;
+			R.transform_dir(Re, e);
+			Rbase.transform_dir(Rbe, e);
+			curr_offs.set(hi->attach_base_offset_pos());
+			curr_offs.sub(e);
+			curr_offs.sub(Re);
+			curr_offs.add(Rbe);
+
+			// fine tune from the main scope config
+			curr_offs.add(asi->addition_aim_pos());
+			curr_rot.add(asi->addition_aim_rot());
+
+			curr_aim_rot.set(asi->aim_offset_rot());
+		}
+		else if ((idx == 1 || idx == 3) && m_modular_attachments) {
 			if (si) {
 				curr_offs.set(hi->attach_base_offset_pos());
 				curr_rot.set(hi->attach_base_offset_rot());
@@ -3090,6 +3187,10 @@ float CWeapon::Weight() const
 	{
 		res += pSettings->r_float(GetScopeName(), "inv_weight");
 	}
+	if (m_addSightSect.size())
+	{
+		res += READ_IF_EXISTS(pSettings, r_float, m_addSightSect, "inv_weight", 0.f);
+	}
 	if (IsSilencerAttached() && GetSilencerName().size())
 	{
 		res += pSettings->r_float(GetSilencerName(), "inv_weight");
@@ -3307,6 +3408,10 @@ u32 CWeapon::Cost() const
 	{
 		res += pSettings->r_u32(GetScopeName(), "cost");
 	}
+	if (m_addSightSect.size())
+	{
+		res += READ_IF_EXISTS(pSettings, r_u32, m_addSightSect, "cost", 0);
+	}
 	if (IsSilencerAttached() && GetSilencerName().size())
 	{
 		res += pSettings->r_u32(GetSilencerName(), "cost");
@@ -3400,4 +3505,431 @@ void CWeapon::net_Relcase(CObject* object)
 		return;
 
 	m_zoom_params.m_pVision->remove_links(object);
+}
+
+//////////////////////////////////////////////////////////////////////////
+// Additional sights
+//////////////////////////////////////////////////////////////////////////
+#include "../xrEngine/xr_input.h"
+#include "ui_base.h"
+#include "ai_space.h"
+#include "alife_simulator.h"
+#include "alife_object_registry.h"
+
+// addition scopes allowed by the current MAS main scope:
+//   [main_scope]
+//   use_addition_scope = true
+//   addition_scopes = eot, t12, scope_group_x
+const xr_vector<shared_str>& CWeapon::AdditionScopesList() const
+{
+	static const xr_vector<shared_str> empty;
+	if (!m_modular_attachments || !IsScopeAttached() || !m_scopes.size())
+		return empty;
+
+	const shared_str scope = GetScopeName();
+	if (!scope.size())
+		return empty;
+	if (m_addListScope == scope)
+		return m_addList;
+
+	m_addListScope = scope;
+	m_addList.clear();
+	if (!READ_IF_EXISTS(pSettings, r_bool, scope, "use_addition_scope", false))
+		return m_addList;
+
+	LPCSTR list = READ_IF_EXISTS(pSettings, r_string, scope, "addition_scopes", "");
+	string256 tok;
+	for (int i = 0, n = _GetItemCount(list); i < n; ++i)
+	{
+		_GetItem(list, i, tok);
+		if (!tok[0])
+			continue;
+		if (!pSettings->section_exist(tok))
+		{
+			Msg("! [addition_scopes] %s: section [%s] not found", scope.c_str(), tok);
+			continue;
+		}
+		// a group: [scope_group_x] scopes = a, b, c
+		if (pSettings->line_exist(tok, "scopes") && !pSettings->line_exist(tok, "hud"))
+		{
+			LPCSTR group = pSettings->r_string(tok, "scopes");
+			string256 sight;
+			for (int j = 0, m = _GetItemCount(group); j < m; ++j)
+			{
+				_GetItem(group, j, sight);
+				if (!sight[0] || !xr_strcmp(sight, scope.c_str()))
+					continue;
+				if (!pSettings->section_exist(sight))
+				{
+					Msg("! [addition_scopes] %s: sight [%s] from group [%s] not found", scope.c_str(), sight, tok);
+					continue;
+				}
+				if (std::find(m_addList.begin(), m_addList.end(), shared_str(sight)) == m_addList.end() && IsValidAddSightSection(sight, scope.c_str()))
+					m_addList.push_back(sight);
+			}
+		}
+		else if (xr_strcmp(tok, scope.c_str()) && std::find(m_addList.begin(), m_addList.end(), shared_str(tok)) == m_addList.end() && IsValidAddSightSection(tok, scope.c_str()))
+			m_addList.push_back(tok);
+	}
+	return m_addList;
+}
+
+bool CWeapon::CanUseAdditionScope() const
+{
+	return !AdditionScopesList().empty();
+}
+
+bool CWeapon::IsAdditionalSightAllowed(LPCSTR sect) const
+{
+	if (!sect || !sect[0])
+		return false;
+	for (const shared_str& s : AdditionScopesList())
+		if (!xr_strcmp(s, sect))
+			return true;
+	return false;
+}
+
+LPCSTR CWeapon::GetAdditionalSightsListScript() const
+{
+	static xr_string res;
+	res.clear();
+	for (const shared_str& s : AdditionScopesList())
+	{
+		if (!res.empty())
+			res.append(",");
+		res.append(s.c_str());
+	}
+	return res.c_str();
+}
+
+bool CWeapon::IsAdditionalSightUsable() const
+{
+	return m_addSightSect.size() && IsAdditionalSightAllowed(m_addSightSect.c_str());
+}
+
+// position of the addition on the main scope, from the main scope hud section:
+//   addition_mount_pos_<sight> / addition_mount_rot_<sight>  (or addition_mount_pos / _rot for all sights)
+//   addition_aim_pos_<sight> / addition_aim_rot_<sight>      (optional aim fine tune)
+void CWeapon::LoadAdditionMount()
+{
+	if (!m_addSightSect.size() || !IsScopeAttached() || !m_scopes.size())
+		return;
+
+	const shared_str scope = GetScopeName();
+	string512 key;
+	xr_sprintf(key, "%s|%s", scope.c_str(), m_addSightSect.c_str());
+	if (m_addMountScope != key)
+	{
+		m_addMountScope = key;
+		LPCSTR hud = READ_IF_EXISTS(pSettings, r_string, scope, "hud", NULL);
+		const Fvector zero = { 0.f, 0.f, 0.f };
+		auto read = [&](LPCSTR base) -> Fvector
+		{
+			if (!hud || !pSettings->section_exist(hud))
+				return zero;
+			string256 name;
+			xr_sprintf(name, "%s_%s", base, m_addSightSect.c_str());
+			if (pSettings->line_exist(hud, name))
+				return pSettings->r_fvector3(hud, name);
+			return READ_IF_EXISTS(pSettings, r_fvector3, hud, base, zero);
+		};
+		m_addMount[0] = read("addition_mount_pos");
+		m_addMount[1] = read("addition_mount_rot");
+		m_addAim[0] = read("addition_aim_pos");
+		m_addAim[1] = read("addition_aim_rot");
+	}
+
+	if (m_addSightItem)
+	{
+		if (attachable_hud_item* hi = m_addSightItem->HudItemData())
+		{
+			hi->m_addition_mount[0] = m_addMount[0];
+			hi->m_addition_mount[1] = m_addMount[1];
+			hi->m_addition_aim[0] = m_addAim[0];
+			hi->m_addition_aim[1] = m_addAim[1];
+		}
+	}
+}
+
+void CWeapon::SyncAddSightToServer()
+{
+	if (!ai().get_alife())
+		return;
+	CSE_ALifeItemWeapon* se = smart_cast<CSE_ALifeItemWeapon*>(ai().alife().objects().object(ID(), true));
+	if (se)
+		se->m_add_sight = m_addSightSect;
+}
+
+void CWeapon::AttachAddSightHud()
+{
+	if (!g_player_hud)
+		return;
+
+	attachable_hud_item* w = g_player_hud->attached_item(0);
+	if (!w || w->m_parent_hud_item != this)
+		return;
+
+	if (!IsAdditionalSightUsable())
+	{
+		DetachAddSightHud();
+		return;
+	}
+
+	if (m_addSightItem)
+	{
+		// sight changed?
+		CHudItem* hud_item = m_addSightItem;
+		LPCSTR hud = READ_IF_EXISTS(pSettings, r_string, m_addSightSect, "hud", NULL);
+		if (!hud || xr_strcmp(hud_item->HudSection().c_str(), hud))
+		{
+			g_player_hud->detach_item(m_addSightItem);
+			xr_delete(m_addSightItem);
+		}
+	}
+
+	if (!m_addSightItem)
+	{
+		if (m_addSightFailed == m_addSightSect)
+			return;
+		if (!IsValidAddSightSection(m_addSightSect.c_str(), cNameSect().c_str()))
+		{
+			m_addSightFailed = m_addSightSect;
+			return;
+		}
+		m_addSightItem = xr_new<CAnonHudItem>();
+		m_addSightItem->Load(m_addSightSect.c_str());
+	}
+
+	attachable_hud_item* hi = m_addSightItem->HudItemData();
+	if (!hi)
+		return;
+	hi->m_attach_place_idx = ADD_SIGHT_ATTACH_IDX;
+	LoadAdditionMount();
+
+	if (g_player_hud->attached_item(ADD_SIGHT_ATTACH_IDX) != hi)
+	{
+		g_player_hud->attach_item(m_addSightItem);
+		m_addSightItem->PlayAnimIdle();
+	}
+}
+
+void CWeapon::DetachAddSightHud()
+{
+	if (m_addSightItem && g_player_hud)
+		g_player_hud->detach_item(m_addSightItem);
+}
+
+void CWeapon::on_a_hud_attach()
+{
+	inherited::on_a_hud_attach();
+	AttachAddSightHud();
+}
+
+void CWeapon::on_b_hud_detach()
+{
+	inherited::on_b_hud_detach();
+	DetachAddSightHud();
+}
+
+void CWeapon::OnMainScopeChanged()
+{
+	// the addition sits on the main scope: no scope or a scope that doesn't take it - give it back
+	if (m_addSightSect.size() && !IsAdditionalSightUsable())
+	{
+		DetachAdditionalSight(true);
+		return;
+	}
+	m_addMountScope = shared_str();
+	AttachAddSightHud();
+	ValidateAddSightZoom();
+}
+
+bool CWeapon::AttachAdditionalSight(LPCSTR sect)
+{
+	if (!IsAdditionalSightAllowed(sect))
+		return false;
+	if (m_addSightSect.size()) // detach the current one first
+		return false;
+
+	m_addSightSect = sect;
+	m_addMountScope = shared_str();
+	SyncAddSightToServer();
+	AttachAddSightHud();
+
+	if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT)
+	{
+		UpdateUIScope();
+		if (IsZoomed())
+			RefreshZoomVision();
+	}
+	return true;
+}
+
+bool CWeapon::DetachAdditionalSight(bool spawn_item)
+{
+	if (!m_addSightSect.size())
+		return false;
+
+	shared_str sect = m_addSightSect;
+
+	if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT)
+	{
+		SetZoomTypeAndParams(0);
+		UpdateUIScope();
+	}
+
+	if (m_addSightItem)
+	{
+		DetachAddSightHud();
+		xr_delete(m_addSightItem);
+	}
+
+	m_addSightSect = shared_str();
+	SyncAddSightToServer();
+
+	if (spawn_item && OnServer())
+	{
+		CObject* parent = H_Parent();
+		Level().spawn_item(sect.c_str(), Position(), ai_location().level_vertex_id(), parent ? parent->ID() : u16(-1));
+	}
+	return true;
+}
+
+bool CWeapon::IsInPlayerHud() const
+{
+	if (!g_player_hud)
+		return false;
+	attachable_hud_item* w = g_player_hud->attached_item(0);
+	return w && w->m_parent_hud_item == static_cast<const CHudItem*>(this);
+}
+
+void CWeapon::ValidateAddSightZoom()
+{
+	if (m_zoomtype != ZOOM_TYPE_ADD_SIGHT)
+		return;
+
+	bool ok = IsAdditionalSightUsable();
+	if (ok && IsInPlayerHud())
+		ok = m_addSightItem && m_addSightItem->IsAttachedToHUD();
+
+	if (!ok)
+	{
+		SetZoomTypeAndParams(0);
+		UpdateUIScope();
+	}
+}
+
+// keeps the hud item of the additional sight in sync with the weapon state (called every frame)
+void CWeapon::SyncAddSightHud()
+{
+	if (!m_addSightSect.size() && !m_addSightItem)
+		return;
+	if (!IsInPlayerHud())
+		return;
+
+	const bool attached = m_addSightItem && m_addSightItem->IsAttachedToHUD();
+	if (IsAdditionalSightUsable())
+	{
+		if (!attached)
+			AttachAddSightHud();
+		else
+			LoadAdditionMount(); // cheap when nothing changed
+	}
+	else if (attached)
+		DetachAddSightHud();
+}
+
+bool IsValidAddSightSection(LPCSTR sight, LPCSTR owner)
+{
+	// everything CAnonHudItem / attachable_hud_item read without defaults
+	LPCSTR hud = READ_IF_EXISTS(pSettings, r_string, sight, "hud", NULL);
+	if (!hud || !pSettings->section_exist(hud))
+	{
+		Msg("! [addition_scopes] %s: sight [%s] has no valid 'hud' section", owner, sight);
+		return false;
+	}
+	if (!pSettings->line_exist(sight, "animation_slot"))
+	{
+		Msg("! [addition_scopes] %s: sight [%s] has no 'animation_slot'", owner, sight);
+		return false;
+	}
+	static const char* hud_keys[] = { "item_visual", "item_position", "item_orientation", "anm_idle" };
+	for (LPCSTR key : hud_keys)
+	{
+		if (!pSettings->line_exist(hud, key))
+		{
+			Msg("! [addition_scopes] %s: hud section [%s] of sight [%s] has no '%s'", owner, hud, sight, key);
+			return false;
+		}
+	}
+	// read with the _16x9 suffix on widescreen
+	static const char* hud_keys_wide[] = { "hands_position", "hands_orientation", "aim_hud_offset_pos", "aim_hud_offset_rot", "gl_hud_offset_pos", "gl_hud_offset_rot" };
+	const bool wide = UI().is_widescreen();
+	for (LPCSTR key : hud_keys_wide)
+	{
+		string128 name;
+		xr_sprintf(name, "%s%s", key, wide ? "_16x9" : "");
+		if (!pSettings->line_exist(hud, name))
+		{
+			Msg("! [addition_scopes] %s: hud section [%s] of sight [%s] has no '%s'", owner, hud, sight, name);
+			return false;
+		}
+	}
+	return true;
+}
+
+void CWeapon::SetAdditionalSightActive(bool active)
+{
+	if (active == (m_zoomtype == ZOOM_TYPE_ADD_SIGHT))
+		return;
+	SwitchAdditionalSight();
+}
+
+void CWeapon::SwitchAdditionalSight()
+{
+	if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT)
+		SetZoomTypeAndParams(0);
+	else if (m_zoomtype != 2 && IsAdditionalSightUsable())
+		SetZoomType(ZOOM_TYPE_ADD_SIGHT);
+	else
+		return;
+
+	UpdateUIScope();
+}
+
+shared_str CWeapon::ZoomVisionSect() const
+{
+	if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT)
+		return m_addSightSect.size() ? READ_IF_EXISTS(pSettings, r_string, m_addSightSect, "scope_alive_detector", NULL) : NULL;
+	return m_zoom_params.m_sUseBinocularVision;
+}
+
+shared_str CWeapon::ZoomPostprocessSect() const
+{
+	if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT)
+		return m_addSightSect.size() ? READ_IF_EXISTS(pSettings, r_string, m_addSightSect, "scope_nightvision", NULL) : NULL;
+	return m_zoom_params.m_sUseZoomPostprocess;
+}
+
+void CWeapon::RefreshZoomVision()
+{
+	xr_delete(m_zoom_params.m_pVision);
+	if (m_zoom_params.m_pNight_vision)
+	{
+		m_zoom_params.m_pNight_vision->Stop(100000.0f, false);
+		xr_delete(m_zoom_params.m_pNight_vision);
+	}
+
+	if (!IsZoomed())
+		return;
+
+	const bool optic = (m_zoomtype == ZOOM_TYPE_ADD_SIGHT) ? IsAdditionalSightUsable() : IsScopeAttached();
+	shared_str vision = ZoomVisionSect();
+	shared_str pp = ZoomPostprocessSect();
+
+	if (vision.size() && optic)
+		m_zoom_params.m_pVision = xr_new<CBinocularsVision>(vision);
+
+	if (pp.size() && optic && smart_cast<CActor*>(H_Parent()))
+		m_zoom_params.m_pNight_vision = xr_new<CNightVisionEffector>(pp);
 }

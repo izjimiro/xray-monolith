@@ -548,6 +548,7 @@ void CSE_ALifeItemWeapon::UPDATE_Read(NET_Packet& tNetPacket)
 void CSE_ALifeItemWeapon::clone_addons(CSE_ALifeItemWeapon* parent)
 {
 	m_addon_flags = parent->m_addon_flags;
+	m_add_sight = parent->m_add_sight;
 }
 
 void CSE_ALifeItemWeapon::clone_upgrades(CSE_ALifeItemWeapon* parent)
@@ -583,6 +584,10 @@ void CSE_ALifeItemWeapon::STATE_Read(NET_Packet& tNetPacket, u16 size)
 
 	if (m_wVersion > 122)
 		a_elapsed_grenades.unpack_from_byte(tNetPacket.r_u8());
+
+	// scripts that rebuild the state packet by hand (utils_stpk-like) may not know this field
+	if (m_wVersion > 128 && !tNetPacket.r_eof())
+		tNetPacket.r_stringZ(m_add_sight);
 }
 
 void CSE_ALifeItemWeapon::STATE_Write(NET_Packet& tNetPacket)
@@ -594,6 +599,7 @@ void CSE_ALifeItemWeapon::STATE_Write(NET_Packet& tNetPacket)
 	tNetPacket.w_u8(m_addon_flags.get());
 	tNetPacket.w_u8(ammo_type);
 	tNetPacket.w_u8(a_elapsed_grenades.pack_to_byte());
+	tNetPacket.w_stringZ(m_add_sight);
 }
 
 void CSE_ALifeItemWeapon::OnEvent(NET_Packet& tNetPacket, u16 type, u32 time, ClientID sender)

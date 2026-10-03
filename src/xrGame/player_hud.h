@@ -7,6 +7,14 @@
 #include "player_hud_legs.h"
 
 #define SCOPE_ATTACH_IDX 2
+#define ADD_SIGHT_ATTACH_IDX 3 // addition scope, mounted on the main (MAS) scope
+#define HUD_ATTACH_SLOTS 4
+
+inline bool is_sight_attach_idx(u16 idx) { return idx == SCOPE_ATTACH_IDX || idx == ADD_SIGHT_ATTACH_IDX; }
+
+// rotation order of the MAS mount / hud aim offset (X, then Y, then Z) and its inverse
+void hud_build_mount_xform(const Fvector& rot, const Fvector& pos, Fmatrix& dest);
+void hud_decompose_rot(const Fmatrix& m, Fvector& rot);
 
 class player_hud;
 class CHudItem;
@@ -303,6 +311,9 @@ struct attachable_hud_item
 	shared_str m_sect_name;
 	IKinematics* m_model;
 	u16 m_attach_place_idx;
+	// ADD_SIGHT_ATTACH_IDX only (set by the weapon): [pos,rot] of the addition scope on the main scope, aim fine tune
+	Fvector m_addition_mount[2];
+	Fvector m_addition_aim[2];
 	hud_item_measures m_measures;
 
     shared_str m_shell_particles;
@@ -319,6 +330,8 @@ struct attachable_hud_item
 
 	attachable_hud_item(player_hud* pparent) : m_parent(pparent), m_upd_firedeps_frame(u32(-1)), m_parent_hud_item(nullptr),
 		m_model(nullptr), m_attach_place_idx(0) {
+		m_addition_mount[0].set(0, 0, 0); m_addition_mount[1].set(0, 0, 0);
+		m_addition_aim[0].set(0, 0, 0); m_addition_aim[1].set(0, 0, 0);
 	}
 	~attachable_hud_item();
 	void load(const shared_str& sect_name);
@@ -350,6 +363,11 @@ struct attachable_hud_item
 	Fvector& attach_mount_offset_pos();
 	Fvector& attach_mount_offset_rot();
 	float attach_scale();
+
+	Fvector& addition_mount_pos();
+	Fvector& addition_mount_rot();
+	Fvector& addition_aim_pos();
+	Fvector& addition_aim_rot();
 
 	//props
 	u32 m_upd_firedeps_frame;
@@ -420,6 +438,7 @@ public:
 		m_attached_items[0] = NULL;
 		m_attached_items[1] = NULL;
 		m_attached_items[SCOPE_ATTACH_IDX] = NULL;
+		m_attached_items[ADD_SIGHT_ATTACH_IDX] = NULL;
 	};
 
 	Fmatrix m_transform;
@@ -441,7 +460,7 @@ private:
 	const Fvector attach_pos(u8 part) const;
 	shared_str m_sect_name;
 	xr_vector<u16> m_ancors;
-	attachable_hud_item* m_attached_items[3];
+	attachable_hud_item* m_attached_items[HUD_ATTACH_SLOTS];
 	static void _BCL FingerCallback(CBoneInstance* B);
 
 public:
@@ -455,6 +474,12 @@ public:
 	xr_map<EBoneCallbackParam, BoneCallbackParams*> m_bone_callback_params; // bonename,params
 	int m_edit_attachment;
 	float m_adjust_zoom_factor[3];
+	Fvector m_adjust_addition[2][2]; // pos,rot/ mount on the main scope, aim fine tune (addition scope)
+
+	// 3D sight editor helpers (UI coordinates 1024x768)
+	int pick_sight(float x, float y);
+	bool sight_screen_rect(u16 slot, Fvector2& mn, Fvector2& mx);
+	void drag_sight(u16 slot, int mode, float dx, float dy);
 	float m_adjust_scale;
 	bool m_adjust_mode;
 	u16 m_edit_bone;

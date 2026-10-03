@@ -889,7 +889,7 @@ bool CHudItem::HudAnimationExist(LPCSTR anim_name)
 	{
 		string256 anim_name_r;
 		bool is_16x9 = UI().is_widescreen();
-		u16 attach_place_idx = pSettings->r_u16(HudItemData()->m_sect_name, "attach_place_idx");
+		u16 attach_place_idx = HudItemData()->m_attach_place_idx;
 		xr_sprintf(anim_name_r, "%s%s", anim_name, ((attach_place_idx == 1) && is_16x9) ? "_16x9" : "");
 		player_hud_motion* anm = HudItemData()->m_hand_motions->find_motion(anim_name_r);
 		if (anm)
@@ -990,6 +990,10 @@ bool CHudItem::IsAttachedToHUD()
 		return true;
 
 	hi = g_player_hud->attached_item(SCOPE_ATTACH_IDX);
+	if (hi && hi->m_parent_hud_item == this)
+		return true;
+
+	hi = g_player_hud->attached_item(ADD_SIGHT_ATTACH_IDX);
 	if (hi && hi->m_parent_hud_item == this)
 		return true;
 

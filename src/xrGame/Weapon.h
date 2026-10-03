@@ -52,6 +52,8 @@ struct SafemodeAnm
 	float power, speed;
 };
 
+#define ZOOM_TYPE_ADD_SIGHT 3 // aiming through the additional sight
+
 class CWeapon : public CHudItemObject,
                 public CShootingObject
 {
@@ -179,7 +181,45 @@ protected:
 	u8 last_idx;
 
 	CAnonHudItem* m_scopeItem = NULL;
+
+	// ---- addition scope (second sight mounted on the MAS main scope) ----
+	CAnonHudItem* m_addSightItem = NULL;
+	void AttachAddSightHud();
+	void DetachAddSightHud();
+	void SyncAddSightToServer();
+	void ValidateAddSightZoom();
+	void SyncAddSightHud();
+	void LoadAdditionMount();
+	bool IsInPlayerHud() const;
+	shared_str m_addSightFailed; // sight section that failed validation (don't retry every frame)
+	mutable shared_str m_addListScope; // main scope the list below was built for
+	mutable xr_vector<shared_str> m_addList; // addition scopes allowed by the main scope (groups resolved)
+	shared_str m_addMountScope; // main scope / addition the mount values were read for
+	Fvector m_addMount[2]; // pos, rot of the addition on the main scope (main scope hud section)
+	Fvector m_addAim[2]; // aim fine tune
+	void RefreshZoomVision();
+	shared_str ZoomVisionSect() const;
+	shared_str ZoomPostprocessSect() const;
 public:
+	shared_str m_addSightSect; // attached addition scope, empty = none
+
+	const xr_vector<shared_str>& AdditionScopesList() const;
+	bool CanUseAdditionScope() const; // MAS main scope attached and it allows an addition
+	bool IsAdditionalSightAllowed(LPCSTR sect) const;
+	bool HasAdditionalSight() const { return m_addSightSect.size() != 0; }
+	LPCSTR GetAdditionalSightScript() const { return m_addSightSect.size() ? m_addSightSect.c_str() : ""; }
+	LPCSTR GetAdditionalSightsListScript() const;
+	bool AttachAdditionalSight(LPCSTR sect);
+	bool DetachAdditionalSight(bool spawn_item);
+	bool IsAdditionalSightUsable() const;
+	bool IsAdditionalSightActive() const { return m_zoomtype == ZOOM_TYPE_ADD_SIGHT; }
+	void SwitchAdditionalSight();
+	void SetAdditionalSightActive(bool active);
+	void OnMainScopeChanged();
+	void ReloadAdditionMount() { m_addMountScope = shared_str(); LoadAdditionMount(); }
+	virtual void on_a_hud_attach();
+	virtual void on_b_hud_detach();
+
 	void signal_HideComplete();
 	virtual bool Action(u16 cmd, u32 flags);
 

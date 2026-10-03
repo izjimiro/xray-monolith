@@ -1390,6 +1390,7 @@ bool CWeaponMagazined::Attach(PIItem pIItem, bool b_send_event)
 				m_scopeItem->PlayAnimIdle();
 			}
 		}
+		OnMainScopeChanged();
 		result = true;
 	}
 	else if (pSilencer &&
@@ -1474,6 +1475,8 @@ bool CWeaponMagazined::Detach(const char* item_section_name, bool b_spawn_item)
 		if (m_modular_attachments && m_zoomtype == 1) {
 			SetZoomTypeAndParams(0);
 		}
+
+		OnMainScopeChanged();
 
 		return CInventoryItemObject::Detach(item_section_name, b_spawn_item);
 	}
