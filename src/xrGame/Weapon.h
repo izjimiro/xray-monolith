@@ -186,6 +186,8 @@ protected:
 	CAnonHudItem* m_addSightItem = NULL;
 	shared_str m_addSightItemSect; // section m_addSightItem was loaded from
 	bool m_aimFrozenValid = false; // sights editor: frozen hud offset
+	Fmatrix m_hudPostH; // trans after the hud offset, previous frame
+	bool m_hudPostHValid = false;
 	Fvector m_aimFrozen[3];
 	u8 m_aimFrozenIdx = 0;
 	u8 m_aimFrozenZoom = 0;

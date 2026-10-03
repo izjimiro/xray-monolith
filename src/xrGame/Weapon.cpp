@@ -2500,38 +2500,73 @@ void CWeapon::UpdateHudAdditional(Fmatrix& trans)
 		curr_aim_rot.set(0, 0, 0);
 
 		if (idx == 1 && m_zoomtype == ZOOM_TYPE_ADD_SIGHT && asi && si) {
-			// aiming through the addition scope mounted on the main scope.
-			// For a non rotated addition this equals the MAS formula (base - mount + aim * scale),
-			// rotations of the main scope / addition are taken into account exactly (canted sights).
+			// Aiming through the addition scope mounted on the main scope.
+			// 1) baseline: the same addition without its own rotation, MAS formula (base - mount + aim * scale);
+			// 2) the real addition must end up with the same eye point and line of sight as the baseline.
+			// Step 2 is done in the frame the hud offset is applied in (hands), the weapon model frame
+			// is mapped into it with the transform measured on the previous frame.
 			const float s = hi->attach_scale();
+			const Fvector zero = { 0.f, 0.f, 0.f };
 
-			Fmatrix Ms, Ma, F;
+			Fmatrix Ms, Ma, Ma0, F, F0;
 			hud_build_mount_xform(hi->attach_mount_offset_rot(), hi->attach_mount_offset_pos(), Ms);
 			Fvector add_pos;
 			add_pos.mul(asi->addition_mount_pos(), s);
 			hud_build_mount_xform(asi->addition_mount_rot(), add_pos, Ma);
-			F.mul_43(Ms, Ma); // addition -> weapon
+			hud_build_mount_xform(zero, add_pos, Ma0);
+			F.mul_43(Ms, Ma);   // addition -> weapon
+			F0.mul_43(Ms, Ma0); // not rotated addition -> weapon
 
-			// eye point of the addition in the weapon frame (MAS aim offset = minus the eye point)
-			Fvector eye_local, e;
+			// eye point of the addition (MAS aim offset = minus the eye point)
+			Fvector eye_local, e_w, e0_w;
 			eye_local.mul(asi->aim_offset_pos(), -s);
-			F.transform_tiny(e, eye_local);
+			F.transform_tiny(e_w, eye_local);
+			F0.transform_tiny(e0_w, eye_local);
 
-			Fmatrix Rbase, Frot, Finv, R;
-			hud_build_mount_xform(hi->attach_base_offset_rot(), Fvector().set(0.f, 0.f, 0.f), Rbase);
+			// baseline hud offset H0 (MAS)
+			Fmatrix Rbase, R0, F0rot, F0inv;
+			hud_build_mount_xform(hi->attach_base_offset_rot(), zero, Rbase);
+			F0rot.set(F0);
+			F0rot.c.set(0.f, 0.f, 0.f);
+			F0inv.invert(F0rot);
+			R0.mul_43(Rbase, F0inv);
+			Fvector offs0;
+			offs0.sub(hi->attach_base_offset_pos(), e0_w);
+
+			// weapon model frame -> hud offset frame (identity until measured)
+			Fmatrix X;
+			X.identity();
+			if (m_hudPostHValid)
+			{
+				Fmatrix inv;
+				inv.invert(m_hudPostH);
+				X.mul_43(inv, hi->m_item_transform);
+			}
+			Fmatrix Xrot;
+			Xrot.set(X);
+			Xrot.c.set(0.f, 0.f, 0.f);
+
+			// target: eye point E and orientation Q of the baseline after H0
+			Fvector e0_h, e_h, E;
+			X.transform_tiny(e0_h, e0_w);
+			X.transform_tiny(e_h, e_w);
+			R0.transform_dir(E, e0_h);
+			E.add(offs0);
+
+			Fmatrix O0, O, Q, Oinv, H;
+			Fmatrix Frot;
 			Frot.set(F);
 			Frot.c.set(0.f, 0.f, 0.f);
-			Finv.invert(Frot);
-			R.mul_43(Rbase, Finv);
-			hud_decompose_rot(R, curr_rot);
+			O0.mul_43(Xrot, F0rot);
+			O.mul_43(Xrot, Frot);
+			Q.mul_43(R0, O0);
+			Oinv.invert(O);
+			H.mul_43(Q, Oinv); // rotation of the hud offset
 
-			Fvector Re, Rbe;
-			R.transform_dir(Re, e);
-			Rbase.transform_dir(Rbe, e);
-			curr_offs.set(hi->attach_base_offset_pos());
-			curr_offs.sub(e);
-			curr_offs.sub(Re);
-			curr_offs.add(Rbe);
+			hud_decompose_rot(H, curr_rot);
+			Fvector He;
+			H.transform_dir(He, e_h);
+			curr_offs.sub(E, He);
 
 			// fine tune from the main scope config
 			curr_offs.add(asi->addition_aim_pos());
@@ -2651,6 +2686,10 @@ void CWeapon::UpdateHudAdditional(Fmatrix& trans)
 		hud_rotation.mulA_43(hud_rotation_y);
 		hud_rotation.translate_over(m_hud_offset[0]);
 		trans.mulB_43(hud_rotation);
+
+		// addition scope: remember the frame the hud offset is applied in (see the zoom type 3 aim above)
+		m_hudPostH.set(trans);
+		m_hudPostHValid = true;
 
 		if (pActor->IsZoomAimingMode())
 			m_zoom_params.m_fZoomRotationFactor += factor;
