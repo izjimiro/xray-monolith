@@ -2591,6 +2591,28 @@ void CWeapon::UpdateHudAdditional(Fmatrix& trans)
 			}
 		}
 		
+		// sights editor: the weapon stays where it is while a sight is being moved
+		if (g_player_hud->m_adjust_mode && g_player_hud->m_adjust_freeze_aim)
+		{
+			if (m_aimFrozenValid && m_aimFrozenIdx == idx && m_aimFrozenZoom == m_zoomtype)
+			{
+				curr_offs.set(m_aimFrozen[0]);
+				curr_rot.set(m_aimFrozen[1]);
+				curr_aim_rot.set(m_aimFrozen[2]);
+			}
+			else
+			{
+				m_aimFrozen[0].set(curr_offs);
+				m_aimFrozen[1].set(curr_rot);
+				m_aimFrozen[2].set(curr_aim_rot);
+				m_aimFrozenIdx = idx;
+				m_aimFrozenZoom = m_zoomtype;
+				m_aimFrozenValid = true;
+			}
+		}
+		else
+			m_aimFrozenValid = false;
+
 		float factor;
 		
 		if (idx == 4 || last_idx == 4)

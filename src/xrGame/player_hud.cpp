@@ -2244,13 +2244,14 @@ void player_hud::drag_sight(u16 slot, int mode, float dx, float dy)
 
 	Fmatrix parent;
 	float scale = 1.f;
-	Fvector* pos;
-	Fvector* rot;
+	Fvector npos, nrot; // new mount, applied through set_sight_mount at the end
+	Fvector* pos = &npos;
+	Fvector* rot = &nrot;
 	if (slot == SCOPE_ATTACH_IDX)
 	{
 		parent.set(wpn->m_item_transform);
-		pos = &m_adjust_offset[0][7];
-		rot = &m_adjust_offset[1][7];
+		npos.set(m_adjust_offset[0][7]);
+		nrot.set(m_adjust_offset[1][7]);
 	}
 	else if (slot == ADD_SIGHT_ATTACH_IDX)
 	{
@@ -2259,8 +2260,8 @@ void player_hud::drag_sight(u16 slot, int mode, float dx, float dy)
 			return;
 		parent.set(scope->m_item_transform);
 		scale = wpn->attach_scale();
-		pos = &m_adjust_addition[0][0];
-		rot = &m_adjust_addition[1][0];
+		npos.set(m_adjust_addition[0][0]);
+		nrot.set(m_adjust_addition[1][0]);
 	}
 	else
 		return;
@@ -2379,6 +2380,43 @@ void player_hud::drag_sight(u16 slot, int mode, float dx, float dy)
 		break;
 	default:
 		break;
+	}
+
+	set_sight_mount(slot, npos, nrot);
+}
+
+// sets the mount of a sight in adjust mode; moving the main scope keeps the addition where it is
+void player_hud::set_sight_mount(u16 slot, const Fvector& pos, const Fvector& rot)
+{
+	if (!m_adjust_mode)
+		return;
+	if (slot == SCOPE_ATTACH_IDX)
+	{
+		attachable_hud_item* wpn = m_attached_items[0];
+		if (m_attached_items[ADD_SIGHT_ATTACH_IDX] && wpn)
+		{
+			float s = wpn->attach_scale();
+			if (s < EPS_L)
+				s = 1.f;
+			Fmatrix ms_old, ms_new, ms_inv, ma, world, ma_new;
+			hud_build_mount_xform(m_adjust_offset[1][7], m_adjust_offset[0][7], ms_old);
+			hud_build_mount_xform(rot, pos, ms_new);
+			Fvector apos;
+			apos.mul(m_adjust_addition[0][0], s);
+			hud_build_mount_xform(m_adjust_addition[1][0], apos, ma);
+			world.mul_43(ms_old, ma); // addition in the weapon frame
+			ms_inv.invert(ms_new);
+			ma_new.mul_43(ms_inv, world);
+			hud_decompose_rot(ma_new, m_adjust_addition[1][0]);
+			m_adjust_addition[0][0].set(ma_new.c).div(s);
+		}
+		m_adjust_offset[0][7].set(pos);
+		m_adjust_offset[1][7].set(rot);
+	}
+	else if (slot == ADD_SIGHT_ATTACH_IDX)
+	{
+		m_adjust_addition[0][0].set(pos);
+		m_adjust_addition[1][0].set(rot);
 	}
 }
 

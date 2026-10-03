@@ -185,6 +185,10 @@ protected:
 	// ---- addition scope (second sight mounted on the MAS main scope) ----
 	CAnonHudItem* m_addSightItem = NULL;
 	shared_str m_addSightItemSect; // section m_addSightItem was loaded from
+	bool m_aimFrozenValid = false; // sights editor: frozen hud offset
+	Fvector m_aimFrozen[3];
+	u8 m_aimFrozenIdx = 0;
+	u8 m_aimFrozenZoom = 0;
 	void AttachAddSightHud();
 	void DetachAddSightHud();
 	void SyncAddSightToServer();

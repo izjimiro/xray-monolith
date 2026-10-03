@@ -1699,6 +1699,18 @@ Fvector2 hud_adj_sight_axis(int slot, int axis, float length)
 	return Fvector2().set(-1.f, -1.f);
 }
 
+void hud_adj_freeze_aim(bool state)
+{
+	if (g_player_hud)
+		g_player_hud->m_adjust_freeze_aim = state;
+}
+
+void hud_adj_set_sight_mount(int slot, Fvector pos, Fvector rot)
+{
+	if (g_player_hud && slot >= 0)
+		g_player_hud->set_sight_mount(u16(slot), pos, rot);
+}
+
 bool hud_adj_auto_place_addition()
 {
 	return g_player_hud ? g_player_hud->auto_place_addition() : false;
@@ -1723,6 +1735,8 @@ void hud_adj_state(bool state)
 			g_player_hud->m_adjust_addition[1][1] = add->m_addition_aim[1];
 		}
 	}
+	if (!state)
+		g_player_hud->m_adjust_freeze_aim = false;
 	g_player_hud->m_adjust_mode = state;
 }
 
@@ -2884,6 +2898,8 @@ void CLevel::script_register(lua_State* L)
 		def("drag_sight", hud_adj_drag_sight),
 		def("sight_axis", hud_adj_sight_axis),
 		def("auto_place_addition", hud_adj_auto_place_addition),
+		def("freeze_aim", hud_adj_freeze_aim),
+		def("set_sight_mount", hud_adj_set_sight_mount),
 		def("remove_hud_model", remove_hud_model)
 	];
 
