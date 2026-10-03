@@ -2420,6 +2420,44 @@ void player_hud::set_sight_mount(u16 slot, const Fvector& pos, const Fvector& ro
 	}
 }
 
+// editor: keep the edited values after the adjust mode is turned off (until the configs are reloaded)
+void player_hud::apply_adjust_to_items()
+{
+	attachable_hud_item* wpn = m_attached_items[0];
+	if (wpn)
+	{
+		hud_item_measures& m = wpn->m_measures;
+		m.m_hands_attach[0] = m_adjust_offset[0][0];
+		m.m_hands_attach[1] = m_adjust_offset[1][0];
+		for (int i = 1; i < 8; ++i)
+		{
+			m.m_hands_offset[0][i] = m_adjust_offset[0][i];
+			m.m_hands_offset[1][i] = m_adjust_offset[1][i];
+		}
+		m.m_attach_scale = m_adjust_scale;
+	}
+
+	if (attachable_hud_item* scope = m_attached_items[SCOPE_ATTACH_IDX])
+	{
+		hud_item_measures& m = scope->m_measures;
+		m.m_hands_offset[0][1] = m_adjust_offset[0][8];
+		m.m_hands_offset[1][1] = m_adjust_offset[1][8];
+		m.m_hands_offset[0][3] = m_adjust_offset[0][9];
+		m.m_hands_offset[1][3] = m_adjust_offset[1][9];
+	}
+
+	if (attachable_hud_item* add = m_attached_items[ADD_SIGHT_ATTACH_IDX])
+	{
+		add->m_addition_mount[0] = m_adjust_addition[0][0];
+		add->m_addition_mount[1] = m_adjust_addition[1][0];
+		add->m_addition_aim[0] = m_adjust_addition[0][1];
+		add->m_addition_aim[1] = m_adjust_addition[1][1];
+		if (wpn)
+			if (CWeapon* w = smart_cast<CWeapon*>(wpn->m_parent_hud_item))
+				w->SetAdditionMountLive(m_adjust_addition[0][0], m_adjust_addition[1][0], m_adjust_addition[0][1], m_adjust_addition[1][1]);
+	}
+}
+
 // screen position (UI units) of the sight origin (axis = -1) or of the end of its own axis 0/1/2
 Fvector2 player_hud::sight_axis_screen(u16 slot, int axis, float length)
 {

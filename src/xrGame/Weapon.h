@@ -222,6 +222,10 @@ public:
 	void SetAdditionalSightActive(bool active);
 	void OnMainScopeChanged();
 	void ReloadAdditionMount() { m_addMountScope = shared_str(); LoadAdditionMount(); }
+	void SetAdditionMountLive(const Fvector& pos, const Fvector& rot, const Fvector& aim_pos, const Fvector& aim_rot)
+	{
+		m_addMount[0] = pos; m_addMount[1] = rot; m_addAim[0] = aim_pos; m_addAim[1] = aim_rot;
+	}
 	virtual void on_a_hud_attach();
 	virtual void on_b_hud_detach();
 

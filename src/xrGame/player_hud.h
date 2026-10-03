@@ -483,6 +483,7 @@ public:
 	Fvector2 sight_axis_screen(u16 slot, int axis, float length);
 	bool auto_place_addition();
 	void set_sight_mount(u16 slot, const Fvector& pos, const Fvector& rot);
+	void apply_adjust_to_items();
 	bool m_adjust_freeze_aim = false; // editor: keep the weapon where it is while a sight is moved
 	float m_adjust_scale;
 	bool m_adjust_mode;

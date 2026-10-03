@@ -1711,6 +1711,12 @@ void hud_adj_set_sight_mount(int slot, Fvector pos, Fvector rot)
 		g_player_hud->set_sight_mount(u16(slot), pos, rot);
 }
 
+void hud_adj_apply_to_items()
+{
+	if (g_player_hud && g_player_hud->m_adjust_mode)
+		g_player_hud->apply_adjust_to_items();
+}
+
 bool hud_adj_auto_place_addition()
 {
 	return g_player_hud ? g_player_hud->auto_place_addition() : false;
@@ -2900,6 +2906,7 @@ void CLevel::script_register(lua_State* L)
 		def("auto_place_addition", hud_adj_auto_place_addition),
 		def("freeze_aim", hud_adj_freeze_aim),
 		def("set_sight_mount", hud_adj_set_sight_mount),
+		def("apply_to_items", hud_adj_apply_to_items),
 		def("remove_hud_model", remove_hud_model)
 	];
 
