@@ -2232,6 +2232,7 @@ int player_hud::pick_sight(float x, float y)
 }
 
 // mode: 0 - move in the screen plane, 1 - move along the view (dy), 2 - rotate (yaw dx / pitch dy), 3 - roll (dx)
+// 4/5/6 - move along the parent X/Y/Z axis, 7/8/9 - rotate around the own X/Y/Z axis
 // dx, dy - cursor delta in UI units
 void player_hud::drag_sight(u16 slot, int mode, float dx, float dy)
 {
@@ -2331,7 +2332,101 @@ void player_hud::drag_sight(u16 slot, int mode, float dx, float dy)
 			hud_decompose_rot(m3, *rot);
 		}
 		break;
+	case 4:
+	case 5:
+	case 6:
+		{
+			// move along one axis of the parent (= one component of the mount position)
+			const int ax = mode - 4;
+			Fvector axis_local;
+			axis_local.set(0.f, 0.f, 0.f);
+			(&axis_local.x)[ax] = 1.f;
+			Fvector axis_world;
+			prot.transform_dir(axis_world, axis_local);
+
+			// how the axis looks on the screen, in UI units per world unit
+			Fvector2 sd;
+			sd.set(axis_world.dotproduct(right) / kx, -axis_world.dotproduct(up) / ky);
+			const float len2 = sd.x * sd.x + sd.y * sd.y;
+			float t;
+			const float min_len = 0.15f / _max(kx, ky); // axis almost looks at the camera
+			if (len2 > min_len * min_len)
+				t = (dx * sd.x + dy * sd.y) / len2;
+			else
+				t = -dy * ky;
+			(&pos->x)[ax] += t / scale;
+		}
+		break;
+	case 7:
+	case 8:
+	case 9:
+		{
+			// rotate around one own axis of the sight
+			const int ax = mode - 7;
+			const float a = (_abs(dx) > _abs(dy) ? dx : -dy) * krot;
+			Fmatrix raxis;
+			if (ax == 0)
+				raxis.rotateX(a);
+			else if (ax == 1)
+				raxis.rotateY(a);
+			else
+				raxis.rotateZ(a);
+			Fmatrix local, m1;
+			hud_build_mount_xform(*rot, Fvector().set(0.f, 0.f, 0.f), local);
+			m1.mul_43(local, raxis); // own axis: applied before the current rotation
+			hud_decompose_rot(m1, *rot);
+		}
+		break;
 	default:
 		break;
 	}
+}
+
+// screen position (UI units) of the sight origin (axis = -1) or of the end of its own axis 0/1/2
+Fvector2 player_hud::sight_axis_screen(u16 slot, int axis, float length)
+{
+	Fvector2 res;
+	res.set(-1.f, -1.f);
+	if (slot >= HUD_ATTACH_SLOTS || !m_attached_items[slot])
+		return res;
+	const Fmatrix& m = m_attached_items[slot]->m_item_transform;
+	Fvector p;
+	p.set(m.c);
+	if (axis >= 0 && axis <= 2)
+	{
+		Fvector a;
+		a.set(axis == 0 ? m.i : (axis == 1 ? m.j : m.k));
+		a.normalize_safe();
+		p.mad(a, length);
+	}
+	if (!hud_project_ui(p, res))
+		res.set(-1.f, -1.f);
+	return res;
+}
+
+// put the addition on top of the main scope by the bounding boxes of both models
+bool player_hud::auto_place_addition()
+{
+	if (!m_adjust_mode)
+		return false;
+	attachable_hud_item* scope = m_attached_items[SCOPE_ATTACH_IDX];
+	attachable_hud_item* add = m_attached_items[ADD_SIGHT_ATTACH_IDX];
+	if (!scope || !add || !scope->m_model || !add->m_model)
+		return false;
+	IRenderVisual* vs = scope->m_model->dcast_RenderVisual();
+	IRenderVisual* va = add->m_model->dcast_RenderVisual();
+	if (!vs || !va)
+		return false;
+
+	// both models are scaled by the same attach_scale, so model units are comparable
+	const Fbox& bs = vs->getVisData().box;
+	const Fvector& mn = va->getVisData().box.min;
+	const Fvector& mx = va->getVisData().box.max;
+	Fvector cs, ca;
+	bs.getcenter(cs);
+	ca.set((mn.x + mx.x) * 0.5f, mn.y, (mn.z + mx.z) * 0.5f);
+
+	m_adjust_addition[0][0].set(cs.x - ca.x, bs.max.y - ca.y, cs.z - ca.z);
+	m_adjust_addition[1][0].set(0.f, 0.f, 0.f);
+	return true;
 }

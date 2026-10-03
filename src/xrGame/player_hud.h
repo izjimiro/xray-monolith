@@ -480,6 +480,8 @@ public:
 	int pick_sight(float x, float y);
 	bool sight_screen_rect(u16 slot, Fvector2& mn, Fvector2& mx);
 	void drag_sight(u16 slot, int mode, float dx, float dy);
+	Fvector2 sight_axis_screen(u16 slot, int axis, float length);
+	bool auto_place_addition();
 	float m_adjust_scale;
 	bool m_adjust_mode;
 	u16 m_edit_bone;

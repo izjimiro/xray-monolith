@@ -1692,6 +1692,18 @@ Fvector2 hud_adj_sight_rect_max(int slot)
 	return Fvector2().set(-1.f, -1.f);
 }
 
+Fvector2 hud_adj_sight_axis(int slot, int axis, float length)
+{
+	if (g_player_hud && slot >= 0)
+		return g_player_hud->sight_axis_screen(u16(slot), axis, length);
+	return Fvector2().set(-1.f, -1.f);
+}
+
+bool hud_adj_auto_place_addition()
+{
+	return g_player_hud ? g_player_hud->auto_place_addition() : false;
+}
+
 void hud_adj_drag_sight(int slot, int mode, float dx, float dy)
 {
 	if (g_player_hud && slot >= 0)
@@ -2870,6 +2882,8 @@ void CLevel::script_register(lua_State* L)
 		def("sight_rect_min", hud_adj_sight_rect_min),
 		def("sight_rect_max", hud_adj_sight_rect_max),
 		def("drag_sight", hud_adj_drag_sight),
+		def("sight_axis", hud_adj_sight_axis),
+		def("auto_place_addition", hud_adj_auto_place_addition),
 		def("remove_hud_model", remove_hud_model)
 	];
 
