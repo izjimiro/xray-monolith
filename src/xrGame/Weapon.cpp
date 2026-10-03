@@ -130,6 +130,8 @@ CWeapon::CWeapon()
 
 	m_altAimPos = false;
 	m_zoomtype = 0;
+	m_altFromWeapon = false;
+	m_addSightAlt = false;
 
 	m_addMount[0].set(0.f, 0.f, 0.f);
 	m_addMount[1].set(0.f, 0.f, 0.f);
@@ -339,6 +341,12 @@ void CWeapon::UpdateZoomParams() {
 		m_zoom_params.m_bUseDynamicZoom = m_zoom_params.m_bUseDynamicZoom_Alt || READ_IF_EXISTS(pSettings, r_bool, cNameSect(), "scope_dynamic_zoom_alt", false);
 		m_zoom_params.m_fScopeZoomFactor = (g_player_hud->m_adjust_mode ? g_player_hud->m_adjust_zoom_factor[2] : READ_IF_EXISTS(pSettings, r_float, cNameSect(), "scope_zoom_factor_alt", 0)) / (READ_IF_EXISTS(pSettings, r_string, cNameSect(), "scope_texture_alt", NULL) && zoomFlags.test(SDS_ZOOM) && (SDS_Radius(true) > 0.0) ? zoom_multiple : 1);
 		m_zoom_params.m_fZoomStepCount = 0;
+	} else if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT && m_addSightSect.size() && m_addSightAlt) //Alt aim of the additional sight
+	{
+		const float wpn_alt = READ_IF_EXISTS(pSettings, r_float, cNameSect(), "scope_zoom_factor_alt", 0);
+		m_zoom_params.m_fScopeZoomFactor = READ_IF_EXISTS(pSettings, r_float, m_addSightSect, "scope_zoom_factor_alt", wpn_alt);
+		m_zoom_params.m_bUseDynamicZoom = false;
+		m_zoom_params.m_fZoomStepCount = 0;
 	} else if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT && m_addSightSect.size()) //Additional sight
 	{
 		LPCSTR sect = m_addSightSect.c_str();
@@ -415,7 +423,7 @@ void CWeapon::UpdateUIScope()
 	}
 	else if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT)
 	{
-		LPCSTR tex = m_addSightSect.size() ? READ_IF_EXISTS(pSettings, r_string, m_addSightSect, "scope_texture", NULL) : NULL;
+		LPCSTR tex = m_addSightSect.size() ? READ_IF_EXISTS(pSettings, r_string, m_addSightSect, m_addSightAlt ? "scope_texture_alt" : "scope_texture", NULL) : NULL;
 		scope_tex_name = (tex && tex[0]) ? tex : NULL;
 	}
 	else if (m_zoomtype == 1)
@@ -455,30 +463,32 @@ void CWeapon::SetUIScope(LPCSTR scope_texture)
 BOOL useSeparateUBGLKeybind = TRUE;
 void CWeapon::SwitchZoomType()
 {
-	// addition scope: main -> addition -> (alt aim / GL as usual) -> main
-	if (m_zoomtype == 0 && IsAdditionalSightUsable())
+	// MAS weapons: main scope -> alt of the main scope -> addition -> alt of the addition -> alt of the weapon
+	// (each one only if it exists), then the grenade launcher (one key mode) or back to the main scope
+	if (m_modular_attachments && m_zoomtype != 2)
 	{
-		SetZoomType(ZOOM_TYPE_ADD_SIGHT);
-		UpdateUIScope();
-		return;
-	}
-	const bool from_add = (m_zoomtype == ZOOM_TYPE_ADD_SIGHT);
-	const bool alt_available = m_altAimPos || g_player_hud->m_adjust_mode || (m_modular_attachments && IsScopeAttached() && READ_IF_EXISTS(pSettings, r_bool, GetScopeName(), "use_alt_aim_hud", false));
-	if (from_add && !alt_available)
-	{
-		SetZoomTypeAndParams(0);
+		const int cur = CurrentZoomStation();
+		for (int st = cur + 1; st < eZsCount; ++st)
+		{
+			if (IsZoomStationAvailable(st))
+			{
+				SetZoomStation(st);
+				return;
+			}
+		}
 		if (!useSeparateUBGLKeybind && IsGrenadeLauncherAttached())
 		{
 			ToggleGrenadeLauncher();
 			return;
 		}
-		UpdateUIScope();
+		if (cur != eZsMain)
+			SetZoomStation(eZsMain);
 		return;
 	}
 
 	if (!useSeparateUBGLKeybind)
     {
-		if ((m_zoomtype == 0 || from_add) && alt_available)
+		if (m_zoomtype == 0 && (m_altAimPos || g_player_hud->m_adjust_mode || (m_modular_attachments && IsScopeAttached() && READ_IF_EXISTS(pSettings, r_bool, GetScopeName(), "use_alt_aim_hud", false))))
 		{
             SetZoomTypeAndParams(1);
 		}
@@ -496,7 +506,7 @@ void CWeapon::SwitchZoomType()
 	}
     else
     {
-		if ((m_zoomtype == 0 || from_add) && alt_available)
+		if (m_zoomtype == 0 && (m_altAimPos || g_player_hud->m_adjust_mode || (m_modular_attachments && IsScopeAttached() && READ_IF_EXISTS(pSettings, r_bool, GetScopeName(), "use_alt_aim_hud", false))))
 		{
 			SetZoomTypeAndParams(1);
 		}
@@ -507,6 +517,63 @@ void CWeapon::SwitchZoomType()
 
 		UpdateUIScope();
 	}
+}
+
+int CWeapon::CurrentZoomStation() const
+{
+	if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT)
+		return m_addSightAlt ? eZsAddAlt : eZsAdd;
+	if (m_zoomtype == 1)
+		return m_altFromWeapon ? eZsWpnAlt : eZsMainAlt;
+	return eZsMain;
+}
+
+bool CWeapon::IsZoomStationAvailable(int st) const
+{
+	const bool scope = IsScopeAttached();
+	switch (st)
+	{
+	case eZsMain:
+		return true;
+	case eZsMainAlt: // alt aim of the MAS main scope (side irons etc.)
+		return scope && (g_player_hud->m_adjust_mode || READ_IF_EXISTS(pSettings, r_bool, GetScopeName(), "use_alt_aim_hud", false));
+	case eZsAdd:
+		return IsAdditionalSightUsable();
+	case eZsAddAlt:
+		return IsAdditionalSightUsable() && READ_IF_EXISTS(pSettings, r_bool, m_addSightSect, "use_alt_aim_hud", false);
+	case eZsWpnAlt: // the weapon's own alt aim (use_alt_aim_hud of the weapon)
+		return m_altAimPos || (g_player_hud->m_adjust_mode && !scope);
+	}
+	return false;
+}
+
+void CWeapon::SetZoomStation(int st)
+{
+	switch (st)
+	{
+	case eZsMain:
+		SetZoomTypeAndParams(0);
+		break;
+	case eZsMainAlt:
+		m_altFromWeapon = false;
+		SetZoomTypeAndParams(1);
+		break;
+	case eZsWpnAlt:
+		m_altFromWeapon = true;
+		SetZoomTypeAndParams(1);
+		break;
+	case eZsAdd:
+		m_addSightAlt = false;
+		SetZoomType(ZOOM_TYPE_ADD_SIGHT);
+		break;
+	case eZsAddAlt:
+		m_addSightAlt = true;
+		SetZoomType(ZOOM_TYPE_ADD_SIGHT);
+		break;
+	default:
+		return;
+	}
+	UpdateUIScope();
 }
 
 void CWeapon::ToggleGrenadeLauncher()
@@ -543,6 +610,12 @@ void CWeapon::SetZoomType(u8 new_zoom_type)
 {
     int previous_zoom_type = m_zoomtype;
     m_zoomtype = new_zoom_type;
+
+	// the alt flags survive the grenade launcher (2): the launcher may return to the same aim
+	if (m_zoomtype == 0 || m_zoomtype == ZOOM_TYPE_ADD_SIGHT)
+		m_altFromWeapon = false;
+	if (m_zoomtype == 0 || m_zoomtype == 1)
+		m_addSightAlt = false;
 
 	// the additional sight has its own night vision / alive detector
 	if ((previous_zoom_type == ZOOM_TYPE_ADD_SIGHT) != (m_zoomtype == ZOOM_TYPE_ADD_SIGHT) && IsZoomed())
@@ -2519,7 +2592,7 @@ void CWeapon::UpdateHudAdditional(Fmatrix& trans)
 
 			// eye point of the addition (MAS aim offset = minus the eye point)
 			Fvector eye_local, e_w, e0_w;
-			eye_local.mul(asi->aim_offset_pos(), -s);
+			eye_local.mul(m_addSightAlt ? asi->alt_aim_offset_pos() : asi->aim_offset_pos(), -s);
 			F.transform_tiny(e_w, eye_local);
 			F0.transform_tiny(e0_w, eye_local);
 
@@ -2572,7 +2645,20 @@ void CWeapon::UpdateHudAdditional(Fmatrix& trans)
 			curr_offs.add(asi->addition_aim_pos());
 			curr_rot.add(asi->addition_aim_rot());
 
-			curr_aim_rot.set(asi->aim_offset_rot());
+			curr_aim_rot.set(m_addSightAlt ? asi->alt_aim_offset_rot() : asi->aim_offset_rot());
+		}
+		else if (idx == 3 && m_modular_attachments && m_altFromWeapon) {
+			// the weapon's own alt aim: aim_hud_offset_alt_pos / _rot of the weapon hud, as without MAS
+			if (g_player_hud->m_adjust_mode)
+			{
+				curr_offs = g_player_hud->m_adjust_offset[0][3];
+				curr_rot = g_player_hud->m_adjust_offset[1][3];
+			}
+			else
+			{
+				curr_offs = hi->m_measures.m_hands_offset[0][3];
+				curr_rot = hi->m_measures.m_hands_offset[1][3];
+			}
 		}
 		else if ((idx == 1 || idx == 3) && m_modular_attachments) {
 			if (si) {
@@ -3957,7 +4043,10 @@ void CWeapon::SwitchAdditionalSight()
 	if (m_zoomtype == ZOOM_TYPE_ADD_SIGHT)
 		SetZoomTypeAndParams(0);
 	else if (m_zoomtype != 2 && IsAdditionalSightUsable())
+	{
+		m_addSightAlt = false;
 		SetZoomType(ZOOM_TYPE_ADD_SIGHT);
+	}
 	else
 		return;
 

@@ -220,6 +220,9 @@ public:
 	bool DetachAdditionalSight(bool spawn_item);
 	bool IsAdditionalSightUsable() const;
 	bool IsAdditionalSightActive() const { return m_zoomtype == ZOOM_TYPE_ADD_SIGHT; }
+	bool IsAdditionalSightAltActive() const { return m_zoomtype == ZOOM_TYPE_ADD_SIGHT && m_addSightAlt; }
+	bool IsWeaponAltAimActive() const { return m_zoomtype == 1 && m_altFromWeapon; }
+	int GetZoomStationScript() const { return CurrentZoomStation(); }
 	void SwitchAdditionalSight();
 	void SetAdditionalSightActive(bool active);
 	void OnMainScopeChanged();
@@ -607,6 +610,11 @@ protected:
 	virtual void UpdateFireDependencies_internal();
 	void UpdateUIScope();
 	void SwitchZoomType();
+	// alt aim cycle: main scope -> its alt -> addition -> its alt -> weapon alt
+	enum EZoomStation { eZsMain = 0, eZsMainAlt, eZsAdd, eZsAddAlt, eZsWpnAlt, eZsCount };
+	int CurrentZoomStation() const;
+	bool IsZoomStationAvailable(int st) const;
+	void SetZoomStation(int st);
 	void ToggleGrenadeLauncher();
     void SetZoomType(u8 new_zoom_type);
 	void SetZoomTypeAndParams(u8 zoomType);
@@ -1071,7 +1079,7 @@ public:
 	virtual void SetZoomRotateTime(float val) { m_zoom_params.m_fZoomRotateTime = val; }
 
     // verdatim
-    virtual void ForceSetZoomType(float val) { m_zoomtype = val; }
+    virtual void ForceSetZoomType(float val) { m_zoomtype = val; m_altFromWeapon = false; m_addSightAlt = false; }
 
 protected:
 	int iAmmoElapsed; // ammo in magazine, currently
@@ -1093,6 +1101,9 @@ public:
 
 	bool m_altAimPos;
 	u8 m_zoomtype;
+	// addition scopes: what zoom type 1 / 3 aims through
+	bool m_altFromWeapon; // zoom type 1: the weapon's own alt aim (otherwise the alt aim of the MAS main scope)
+	bool m_addSightAlt; // zoom type 3: the alt aim of the addition scope
 
 	CWeaponAmmo* m_pCurrentAmmo;
 	u8 m_ammoType;

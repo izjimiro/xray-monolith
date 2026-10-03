@@ -155,7 +155,7 @@ Fvector& attachable_hud_item::aim_offset_rot()
 
 Fvector& attachable_hud_item::alt_aim_offset_pos()
 {
-	if (g_player_hud->m_adjust_mode) {
+	if (g_player_hud->m_adjust_mode && m_attach_place_idx != ADD_SIGHT_ATTACH_IDX) {
 		if (m_attach_place_idx == SCOPE_ATTACH_IDX)
 			return g_player_hud->m_adjust_offset[0][9];
 		return g_player_hud->m_adjust_offset[0][3];
@@ -165,7 +165,7 @@ Fvector& attachable_hud_item::alt_aim_offset_pos()
 
 Fvector& attachable_hud_item::alt_aim_offset_rot()
 {
-	if (g_player_hud->m_adjust_mode) {
+	if (g_player_hud->m_adjust_mode && m_attach_place_idx != ADD_SIGHT_ATTACH_IDX) {
 		if (m_attach_place_idx == SCOPE_ATTACH_IDX)
 			return g_player_hud->m_adjust_offset[1][9];
 		return g_player_hud->m_adjust_offset[1][3];
