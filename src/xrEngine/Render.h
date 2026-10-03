@@ -295,6 +295,8 @@ public:
 public:
 	// options
 	bool hud_loading;
+	// addition scopes: 3D scope lens passes of the hud item with this transform are not rendered (the sight that is not aimed through)
+	const Fmatrix* hud_lens_skip_xform = nullptr;
 	s32 m_MSAASample;
 
 	BENCH_SEC_SCRAMBLEMEMBER1

@@ -90,6 +90,10 @@ void CDSGraphManager::r_dsgraph_insert_dynamic(dxRender_Visual *pVisual, Fmatrix
 	// NOTE: Invisible elements exist only in R1
 
 #if defined(USE_DX11) //  Redotix99: for 3D Shader Based Scopes 		
+	// addition scopes: only the sight that is aimed through renders its 3D scope lens (they share buffers)
+	if (sh->flags.iScopeLense && xform && xform == RImplementation.hud_lens_skip_xform)
+		return;
+
 	switch (sh->flags.iScopeLense) {	
 		case 0:
 			break;

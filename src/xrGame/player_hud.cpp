@@ -1433,6 +1433,20 @@ void player_hud::update(const Fmatrix& cam_trans)
 	if (m_attached_items[ADD_SIGHT_ATTACH_IDX])
 		m_attached_items[ADD_SIGHT_ATTACH_IDX]->update(true);
 
+	// addition scope: the sight that is not aimed through doesn't render its 3D scope lens
+	{
+		const Fmatrix* skip = nullptr;
+		attachable_hud_item* sc = m_attached_items[SCOPE_ATTACH_IDX];
+		attachable_hud_item* ad = m_attached_items[ADD_SIGHT_ATTACH_IDX];
+		if (sc && ad && m_attached_items[0])
+		{
+			CWeapon* w = smart_cast<CWeapon*>(m_attached_items[0]->m_parent_hud_item);
+			if (w)
+				skip = w->IsAdditionalSightActive() ? &sc->m_item_transform : &ad->m_item_transform;
+		}
+		::Render->hud_lens_skip_xform = skip;
+	}
+
 	if (script_anim_item_attached && script_anim_item_model)
 		update_script_item();
 
@@ -1891,6 +1905,9 @@ void player_hud::set_part_cycle_speed(u8 part, float speed)
 void player_hud::detach_item_idx(u16 idx)
 {
 	if (NULL == m_attached_items[idx]) return;
+
+	if (is_sight_attach_idx(idx))
+		::Render->hud_lens_skip_xform = nullptr;
 
 	m_attached_items[idx]->m_parent_hud_item->on_b_hud_detach();
 	m_attached_items[idx] = NULL;
