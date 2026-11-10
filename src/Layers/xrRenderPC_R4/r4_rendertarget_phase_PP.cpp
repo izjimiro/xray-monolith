@@ -595,7 +595,9 @@ void CRenderTarget::phase_dlss_postprocess()
 
 	// 3D scope lenses magnify the frame around them. In the scene the zoom also
 	// magnified the jitter and was reconstructed with the world's motion vectors.
-	if (scope_3D_fake_enabled && ScopeAfterUpscale() && !RImplementation.GMBase.RGraph.mapScopeHUDSorted.empty())
+	const auto& scopeGraph = RImplementation.GMBase.RGraph;
+	if (scope_3D_fake_enabled && ScopeAfterUpscale() &&
+		(!scopeGraph.mapScopeHUDSorted.empty() || !scopeGraph.mapScopeCamAttachedSorted.empty()))
 		phase_dlss_scope(sceneJitter.x, sceneJitter.y);
 
 #ifdef XR_DX12_BRIDGE

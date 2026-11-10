@@ -63,12 +63,9 @@ void CDSGraphManager::r_dsgraph_insert_dynamic(dxRender_Visual *pVisual, Fmatrix
 {
 	Fvector Center;
 	xform->transform_tiny(Center, pVisual->vis.sphere.P);
-    // Attachments can submit the same visual at several instance transforms in one pass.
+    // Script attachments submit a temporary transform, keep a copy for the render.
     if (!get_UI3D() && val_pObject && !val_pObject->dcast_CObject())
-    {
-        owned_transforms.push_back(*xform);
-        xform = &owned_transforms.back();
-    }
+        xform = store_instance_transform(pVisual, *xform);
     if (get_UI3D())
     {
         VERIFY(pVisual->shader._get());

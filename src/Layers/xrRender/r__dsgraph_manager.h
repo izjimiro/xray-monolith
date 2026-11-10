@@ -15,7 +15,20 @@ public:
 	};
 
 	R_dsgraph::DynamicSceneRgraph RGraph;
+	// Icon transforms, freed once the icons are drawn.
 	xr_list<Fmatrix> owned_transforms;
+	// Script attachments hand over a transform from their stack. These copies stay at
+	// one address for as long as the attachment keeps drawing: motion vector history
+	// is tracked by address, and the passes after the upscaler still read them.
+	struct InstanceTransforms
+	{
+		xr_deque<Fmatrix> transforms;
+		u32 frame = 0;
+		u32 used = 0;
+	};
+	xr_map<std::pair<const IRenderable*, const dxRender_Visual*>, InstanceTransforms> instance_transforms;
+	u32 instance_transforms_pruned = 0;
+	Fmatrix* store_instance_transform(const dxRender_Visual* visual, const Fmatrix& transform);
 	xr_vector<IRenderable*> renderable_ui;
 	virtual void add_RenderableUI(IRenderable* object) override
 	{
@@ -140,6 +153,7 @@ public:
 		RGraph.clear();
 		renderable_ui.clear();
 		owned_transforms.clear();
+		instance_transforms.clear();
 		if (m_sector_frustums.size())
 		{
 			for (auto& pair : m_sector_frustums)

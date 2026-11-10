@@ -117,6 +117,7 @@ class CCustomFOVInitializer
 	bool enabled;
 	bool near_depth;
 	Fmatrix saved_project;
+	Fmatrix saved_project_prev;
 	Fmatrix saved_full;
 
 public:
@@ -132,6 +133,12 @@ public:
 		if (near_depth) RImplementation.rmNear();
 		Device.mFullTransform.mul(project, Device.mView);
 		RCache.set_xform_project(project);
+#ifdef USE_DX11
+		// With only the current projection swapped, a still object reports the
+		// difference between the two FOVs as motion.
+		saved_project_prev = RCache.xforms.m_p_prev;
+		RCache.set_xform_project_prev(project);
+#endif
 	}
 
 	~CCustomFOVInitializer()
@@ -140,6 +147,9 @@ public:
 		if (near_depth) RImplementation.rmNormal();
 		Device.mFullTransform = saved_full;
 		RCache.set_xform_project(saved_project);
+#ifdef USE_DX11
+		RCache.set_xform_project_prev(saved_project_prev);
+#endif
 	}
 };
 }
@@ -476,13 +486,18 @@ void CDSGraphManager::r_dsgraph_extract_dlss_effects()
 		return false;
 	};
 	dlss::ExtractNativeUi(RGraph.mapHUDSorted.Sorted, RGraph.mapDlssHudEffects, isLaser);
-	auto& world = RGraph.mapDynamicSorted.Sorted;
-	world.erase(std::remove_if(world.begin(), world.end(), [&](const auto& item)
+	const auto holdLasers = [&](auto& list)
 	{
-		if (!isLaser(item)) return false;
-		RGraph.mapDlssEffects.push_back(item);
-		return true;
-	}), world.end());
+		list.erase(std::remove_if(list.begin(), list.end(), [&](const auto& item)
+		{
+			if (!isLaser(item)) return false;
+			RGraph.mapDlssEffects.push_back(item);
+			return true;
+		}), list.end());
+	};
+	holdLasers(RGraph.mapDynamicSorted.Sorted);
+	// Attachments with their own FOV draw like world geometry, with the FOV in the item.
+	holdLasers(RGraph.mapCustomFOVSorted.Sorted);
 }
 
 void CDSGraphManager::r_dsgraph_render_dlss_effects()
@@ -501,21 +516,38 @@ void CDSGraphManager::r_dsgraph_render_dlss_effects()
 void CDSGraphManager::r_dsgraph_extract_fg_reticles()
 {
 	RGraph.mapFgReticles.clear();
-	for (const auto& item : RGraph.mapHUDSorted.Sorted)
+	const auto copyReticles = [&](const auto& list)
 	{
-		for (const auto& pass : item.pSE->passes)
+		for (const auto& item : list)
 		{
-			const char* name = pass->ps ? pass->ps->cName.c_str() : nullptr;
-			if (!name || strncmp(name, "models_reflex_reticle", 21)) continue;
-			RGraph.mapFgReticles.push_back(item);
-			break;
+			for (const auto& pass : item.pSE->passes)
+			{
+				const char* name = pass->ps ? pass->ps->cName.c_str() : nullptr;
+				if (!name || strncmp(name, "models_reflex_reticle", 21)) continue;
+				RGraph.mapFgReticles.push_back(item);
+				break;
+			}
 		}
-	}
+	};
+	copyReticles(RGraph.mapHUDSorted.Sorted);
+	copyReticles(RGraph.mapCustomFOVSorted.Sorted);
 }
 
 void CDSGraphManager::r_dsgraph_render_fg_reticles()
 {
 	PROF_EVENT("r_dsgraph_render_fg_reticles");
+	// Custom FOV attachments were drawn in the scene without the HUD setup.
+	R_dsgraph::mapDSGraphItems<float, true> customFov;
+	auto& reticles = RGraph.mapFgReticles;
+	reticles.erase(std::remove_if(reticles.begin(), reticles.end(), [&](const auto& item)
+	{
+		if (item.fov == 0.f) return false;
+		customFov.push_back(item);
+		return true;
+	}), reticles.end());
+	r_dsgraph_render_graph_sorted(customFov, true);
+	if (reticles.empty()) return;
+
 	CHudInitializer initializer(true);
 	RImplementation.rmNear();
 	r_dsgraph_render_graph_sorted(RGraph.mapFgReticles, true);
@@ -525,31 +557,45 @@ void CDSGraphManager::r_dsgraph_render_fg_reticles()
 void CDSGraphManager::r_dsgraph_render_fg_mask(bool reticles)
 {
 	PROF_EVENT("r_dsgraph_render_fg_mask");
-	// Only these: the effects list may hold particles, and the scope list lenses.
+	// Only these: the effects list may hold particles, and the scope lists lenses.
 	const char* prefix = reticles ? "models_reflex_reticle" : "models_laserbeam";
 	const size_t length = xr_strlen(prefix);
-	R_dsgraph::mapDSGraphItems<float, true> items;
-	const auto collect = [&](const auto& from)
+	const auto matches = [&](const auto& item)
 	{
-		items.clear();
+		for (const auto& pass : item.pSE->passes)
+		{
+			const char* name = pass->ps ? pass->ps->cName.c_str() : nullptr;
+			if (name && !strncmp(name, prefix, length)) return true;
+		}
+		return false;
+	};
+	const auto anyMatch = [&](const auto& from)
+	{
+		return std::any_of(from.begin(), from.end(), matches);
+	};
+	const auto draw = [&](const auto& from)
+	{
+		std::decay_t<decltype(from)> items;
 		for (const auto& item : from)
 		{
-			for (const auto& pass : item.pSE->passes)
-			{
-				const char* name = pass->ps ? pass->ps->cName.c_str() : nullptr;
-				if (!name || strncmp(name, prefix, length)) continue;
-				items.push_back(item);
-				break;
-			}
+			if (matches(item)) items.push_back(item);
 		}
-		return !items.empty();
+		this->r_dsgraph_render_graph_sorted(items, true);
 	};
-	if (!reticles && collect(RGraph.mapDlssEffects))
-		r_dsgraph_render_graph_sorted(items, true);
-	if (!collect(reticles ? RGraph.mapScopeHUDSorted : RGraph.mapDlssHudEffects)) return;
+
+	if (!reticles) draw(RGraph.mapDlssEffects);
+	const auto& hud = reticles ? RGraph.mapScopeHUDSorted : RGraph.mapDlssHudEffects;
+	const bool camScopes = reticles && anyMatch(RGraph.mapScopeCamAttachedSorted);
+	if (!anyMatch(hud) && !camScopes) return;
+
 	CHudInitializer initializer(true);
 	RImplementation.rmNear();
-	r_dsgraph_render_graph_sorted(items, true);
+	draw(hud);
+	if (camScopes)
+	{
+		initializer.SetCamMode();
+		draw(RGraph.mapScopeCamAttachedSorted);
+	}
 	RImplementation.rmNormal();
 }
 #endif
