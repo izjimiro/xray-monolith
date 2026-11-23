@@ -6,6 +6,7 @@
         step_particle_distance [10; 100] // max distance at which step particle effects are played, hard cut-off, default 50
         snd_max_distance_multiplier [0.2; 2.0] // multiplier for maximum sound distance before it fade into being inaudbile due to low volume, default 1.0 (base values are configured on a per ogg file basis)
         snd_max_ai_distance_multiplier [0.2; 2.0] // multiplier for maximum distance AI reacts to sounds, default 1.0 (base values are configured on a per ogg file basis)
+        snd_music_next // Skip current music track for the next one
 
         bus_list // Print every shader bus lane with its owner, value, state, counters and the frame a shader last bound it
         bus_get <id> // Print one shader bus lane
@@ -205,6 +206,7 @@
         void iterate_objects(function(se_obj))
         void iterate_level_objects_of_clsid(number script_clsid, function(se_obj)) -- walks actor's current-level CSE registry filtered by m_script_clsid; functor returns true to stop early; must not release the currently iterated entity
         void force_update() -- forces an immediate alife scheduled update cycle
+        number objects_per_update() -- current scheduled-update object budget, as last set by set_objects_per_update (initially alife.ltx [alife] objects_per_update)
         cse_abstract create_on_level(string section, string level_name, Fvector position, number level_vertex_id = nil) -- create(section, position, lvid, gvid) with the ids derived: exact on the current level; elsewhere the level's nearest game vertex and level_vertex_id or that vertex's own level vertex, re-snapped to position when the level loads; nil (logged) when the level is not in the game graph
     }
 
@@ -229,12 +231,15 @@
         Fvector2 world2ui(Fvector pos, bool hud = false, bool allow_offscreen = false)
         Fvector world2ui_with_depth(Fvector pos, bool hud = false, bool allow_offscreen = false) // x and y are screen coordinates, z is the post projection w, negative behind the camera and its magnitude is the view distance in metres
         table world2ui_many(table positions, bool hud, bool allow_offscreen) // projects an array of Fvector in one call, result[i] is the world2ui_with_depth vector for positions[i], stops at the first missing or non vector entry, empty table if the argument is not a table
+        table level_names() // names of the levels in play: game.ltx [levels] entries minus spawn_overlays.ltx [level_cut], sorted; works in the main menu, same list in game
         function ui2world(Fvector2 pos) -> Fvector result, u16 object_id
         function ui2world_offscreen(Fvector2 pos) -> Fvector result, u16 object_id
         change_game_news_show_time(CUIWindow* UIWindow, float show_time)
         update_pda_news_from_uiwindow(CUIWindow* UIWindow)
 
         bool motion_exists(string model_path, string motion_name) -- Loads a HUD model temporarily and checks whether it contains a named cycle motion. Caller must ensure the file exists first — game crashes on a missing path.
+
+        void set_hud_motion_lock(number target, number seconds) -- Ramps lock_to_camera toward target (clamped 0-1, 0 = normal hud, 1 = render cam w/o script/movement layers) from its current value, if seconds is 0 sets target instantly. Target resets to 0 when done with ramping.
     }
 
     ini_file() {
@@ -282,6 +287,10 @@
         property dest_position          // Fvector
     }
 
+    class cse_alife_trader_abstract {
+        function set_character_display_name(string)
+    }
+
     // game_graph()
     class CGameGraph {
         table level_neighbours(number level_id) // {[level_id] = true} for every level sharing a game-graph edge with level_id; empty table when the level is unknown or has no cross-level edges (offline squads cannot path in or out)
@@ -316,6 +325,7 @@
 
 		CUI3tButton cast_3tButton()
 		CUIActorMenu cast_ActorMenu()
+		CUIBinocularsVision cast_BinocularsVision()
 		CUIButton cast_Button()
 		CUICheckButton cast_CheckButton()
 		CUIComboBox cast_ComboBox()
@@ -358,6 +368,22 @@
     class CUIGameCustom {
         void TalkMenuSetVisible(bool visible)
         CUIWindow GetWindow() // get_hud():GetWindow()
+    }
+
+    class CScriptXmlInit {
+        CUIBinocularsVision InitBinocularsVision(string path, CUIWindow parent) // node holds <corners width height> with the <lt>, <rt>, <lb>, <rb> corner textures as children
+    }
+
+    // Frames are placed in screen space : keep the window at 0,0 and over the whole screen
+    class CUIBinocularsVision : CUIWindow {
+        CUIBinocularsVision(string lt, string rt, string lb, string rb, vector2 frame_size) // corner textures, and the size of one corner
+        CUIBinocularsVision(string section) // item section with vis_frame_speed, vis_frame_color, found_snd and catch_snd, vanilla corners
+
+        void SetFrameColor(u32 color) // frame color until it locks, drawn at half alpha
+        void SetSpeed(float speed) // share of the remaining distance to the target closed per second
+        void SetRelationColors(u32 friend_color, u32 neutral_color, u32 enemy_color) // locked frame color of stalkers by relation to the actor, mutants keep the frame color
+        void SetFoundSound(string path) // played when a target is spotted, "" or "none" for silence
+        void SetCatchSound(string path) // played when a frame locks onto its target, "" or "none" for silence
     }
 
     class CUIProgressBar {
@@ -930,6 +956,21 @@
         eStateThreaten               = 16777216,
         eStateCustom                 = 1073741824
     }
+
+    // MonsterMovementInfo.path_capturer values (ControlCom::EControlType); custom1 is the controller psi tube
+    enum monster_path_capturer {
+        none             = -1,
+        sequencer        = 4,
+        triple_animation = 5,
+        jump             = 6,
+        rotation_jump    = 7,
+        run_attack       = 8,
+        threaten         = 9,
+        melee_jump       = 10,
+        custom1          = 16,
+        critical_wound   = 17,
+        anti_aim         = 18
+    }
     
     // slot ids, the same numbers move_to_slot and active_slot use, read as inventory.knife
     enum inventory.slot {
@@ -1024,6 +1065,7 @@
         // CBaseMonster - FSM memory readers. Report what the monster currently believes, distinct from live ground truth off the enemy game_object.
         MonsterEnemyInfo get_monster_enemy_info() // The EnemyMan record: enemy game_object (nil when none), last-seen position and vertex (the monster's cached belief, diverges from the live object while the enemy is unseen), time_last_seen (ms), enemies_count (remembered, not live-visible), my_vertex_enemy_last_seen + enemy_vertex_enemy_last_seen. Empty record on a non-monster.
         MonsterHomeInfo get_monster_home_info() // The CMonsterHome record: point (home anchor), radius_min/mid/max, aggressive, has_home, at_home. has_home false = no home set. Empty record on a non-monster.
+        MonsterMovementInfo get_monster_movement_info() // The CControl_Manager movement record, for slow/stuck diagnosis: velocity_current (applied AI speed), velocity_target (speed the active state asked for), real_velocity (physics XZ translation in the going direction), path_completed (reached the path end, arrived and correctly idle), path_actual (path is current/valid, false = rebuilding or target unreachable), path_capturer (the component holding the path, read against monster_path_capturer: a leap, charge, roar, rear strike, tube, flinch, anti-aim or standalone animation; none while the path builder drives. A chimera holds the path with its jump component while it circles and winds up too, read get_chimera_attack_phase alongside). Empty record on a non-monster.
         // get_monster_hit_info gains .position (last hit world pos) + .count (remembered hits); get_sound_info gains .type (TSoundDangerValue) + .count (remembered sounds).
         
         // CBaseMonster - rear-strike lever. Default = exact vanilla; not serialized, re-apply on net_spawn.

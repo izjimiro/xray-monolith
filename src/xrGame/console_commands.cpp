@@ -167,6 +167,7 @@ extern float f_Freelook_cam_limit;
 extern int MOUSEBUFFERSIZE;
 extern int KEYBOARDBUFFERSIZE;
 extern BOOL print_bone_warnings;
+extern BOOL print_ik_warnings;
 extern BOOL print_dltx_warnings;
 extern BOOL dltx_use_cache;
 extern BOOL poltergeist_spawn_corpse_on_death;
@@ -393,7 +394,8 @@ static void full_memory_stats(bool assert = true)
 	u32 _eco_strings_count = 0;
 	u32 _eco_strings_unique_count = 0;
 	int _eco_strings = (int)g_pStringContainer->stat_economy(_eco_strings_count, _eco_strings_unique_count);
-	int _eco_smem = (int)g_pSharedMemoryContainer->stat_economy();
+	size_t _smem_usage = 0;
+	s64 _eco_smem = g_pSharedMemoryContainer->stat_economy(&_smem_usage);
 	u32 m_base = 0, c_base = 0, m_lmaps = 0, c_lmaps = 0;
 
 	//if (Device.Resources)	Device.Resources->_GetMemoryUsage	(m_base,c_base,m_lmaps,c_lmaps);
@@ -414,7 +416,7 @@ static void full_memory_stats(bool assert = true)
 	if (_eco_strings_count != _eco_strings_unique_count)
 		Msg("! [x-ray]: shared strings, count != unique");
 
-	Msg("* [x-ray]: shared memory: memory[%ld K]", _eco_smem);
+	Msg("* [x-ray]: shared memory: memory[%zu K], economy[%lld K]", _smem_usage / 1024, _eco_smem / 1024);
 
 	u64 DLTX_total_bytes = 0;
 	u64 DLTX_section_count = 0;
@@ -1360,6 +1362,23 @@ public:
 	}
 };
 
+class CCC_MusicNext : public IConsole_Command
+{
+public:
+	CCC_MusicNext(LPCSTR N) : IConsole_Command(N) { bEmptyArgsHandled = true; }
+
+	virtual void Execute(LPCSTR args)
+	{
+		if (*args)
+		{
+			InvalidSyntax();
+			return;
+		}
+		if (g_pGameLevel)
+			Level().SkipMusicTrack();
+	}
+};
+
 class CCC_FlushLog : public IConsole_Command
 {
 public:
@@ -1961,10 +1980,9 @@ public:
 				return;
 			}
 
-			string4096 S;
 			shared_str m_script_name = "console command";
-			xr_sprintf(S, "%s\n", args);
-			int l_iErrorCode = luaL_loadbuffer(ai().script_engine().lua(), S, xr_strlen(S), "@console_command");
+			xr_string S = xr_string(args) + "\n";
+			int l_iErrorCode = luaL_loadbuffer(ai().script_engine().lua(), S.c_str(), S.size(), "@console_command");
 			if (!l_iErrorCode)
 			{
 				l_iErrorCode = lua_pcall(ai().script_engine().lua(), 0, 0, 0);
@@ -3038,6 +3056,7 @@ void CCC_RegisterCommands()
 	CMD3(CCC_Mask, "g_use_tracers", &psActorFlags, AF_USE_TRACERS);
 	CMD3(CCC_Mask, "g_autopickup", &psActorFlags, AF_AUTOPICKUP);
 	CMD3(CCC_Mask, "g_dynamic_music", &psActorFlags, AF_DYNAMIC_MUSIC);
+	CMD1(CCC_MusicNext, "snd_music_next");
 	psActorFlags.set(AF_IMPORTANT_SAVE, TRUE);
 	CMD3(CCC_Mask, "g_important_save", &psActorFlags, AF_IMPORTANT_SAVE);
 
@@ -3416,6 +3435,7 @@ void CCC_RegisterCommands()
 
 	// Print warnings when using bone_position and bone_direction functions and encounter invalid bones
 	CMD4(CCC_Integer, "print_bone_warnings", &print_bone_warnings, 0, 1);
+	CMD4(CCC_Integer, "print_ik_warnings", &print_ik_warnings, 0, 1);
 
 	// Print DLTX warnings when "override section which doesn't exist", also prints cache hit for each file
 	CMD4(CCC_Integer, "print_dltx_warnings", &print_dltx_warnings, 0, 1);
