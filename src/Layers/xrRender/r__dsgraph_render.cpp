@@ -485,19 +485,32 @@ void CDSGraphManager::r_dsgraph_extract_dlss_effects()
 		}
 		return false;
 	};
-	dlss::ExtractNativeUi(RGraph.mapHUDSorted.Sorted, RGraph.mapDlssHudEffects, isLaser);
-	const auto holdLasers = [&](auto& list)
+	// Holo and red dot reticles on the weapon, too: reconstructed from fewer
+	// pixels they came out blurred. Reticles with the scope lens flag are in the
+	// scope lists instead and already drawn after the upscaler.
+	const auto isEffect = [&](const auto& item)
+	{
+		if (isLaser(item)) return true;
+		for (const auto& pass : item.pSE->passes)
+		{
+			const char* name = pass->ps ? pass->ps->cName.c_str() : nullptr;
+			if (name && !strncmp(name, "models_reflex_reticle", 21)) return true;
+		}
+		return false;
+	};
+	dlss::ExtractNativeUi(RGraph.mapHUDSorted.Sorted, RGraph.mapDlssHudEffects, isEffect);
+	const auto hold = [&](auto& list, const auto& predicate)
 	{
 		list.erase(std::remove_if(list.begin(), list.end(), [&](const auto& item)
 		{
-			if (!isLaser(item)) return false;
+			if (!predicate(item)) return false;
 			RGraph.mapDlssEffects.push_back(item);
 			return true;
 		}), list.end());
 	};
-	holdLasers(RGraph.mapDynamicSorted.Sorted);
+	hold(RGraph.mapDynamicSorted.Sorted, isLaser);
 	// Attachments with their own FOV draw like world geometry, with the FOV in the item.
-	holdLasers(RGraph.mapCustomFOVSorted.Sorted);
+	hold(RGraph.mapCustomFOVSorted.Sorted, isEffect);
 }
 
 void CDSGraphManager::r_dsgraph_render_dlss_effects()
@@ -511,8 +524,10 @@ void CDSGraphManager::r_dsgraph_render_dlss_effects()
 	RImplementation.rmNormal();
 }
 
-// Reflex sight reticles without the scope lens flag are drawn in the scene with
-// the HUD. Keep copies for frame generation's mask, drawn after the upscaler.
+// Reflex sight reticles without the scope lens flag stay in the scene with the
+// HUD when effects are not held for after the upscaler. Keep copies for frame
+// generation's mask, drawn after the upscaler. Held reticles are already gone
+// from these lists and go into the mask with the laser beams.
 void CDSGraphManager::r_dsgraph_extract_fg_reticles()
 {
 	RGraph.mapFgReticles.clear();
@@ -557,15 +572,16 @@ void CDSGraphManager::r_dsgraph_render_fg_reticles()
 void CDSGraphManager::r_dsgraph_render_fg_mask(bool reticles)
 {
 	PROF_EVENT("r_dsgraph_render_fg_mask");
-	// Only these: the effects list may hold particles, and the scope lists lenses.
-	const char* prefix = reticles ? "models_reflex_reticle" : "models_laserbeam";
-	const size_t length = xr_strlen(prefix);
+	// Only these: the effects lists may hold particles, and the scope lists lenses.
+	// The effects lists also hold the reflex reticles taken out of the scene.
 	const auto matches = [&](const auto& item)
 	{
 		for (const auto& pass : item.pSE->passes)
 		{
 			const char* name = pass->ps ? pass->ps->cName.c_str() : nullptr;
-			if (name && !strncmp(name, prefix, length)) return true;
+			if (!name) continue;
+			if (!strncmp(name, "models_reflex_reticle", 21)) return true;
+			if (!reticles && !strncmp(name, "models_laserbeam", 16)) return true;
 		}
 		return false;
 	};

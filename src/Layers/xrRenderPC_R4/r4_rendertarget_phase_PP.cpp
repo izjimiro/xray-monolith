@@ -406,7 +406,8 @@ void CRenderTarget::dlss_hdr_restore()
 	RCache.InvalidateTextures();
 }
 
-// Particles and laser beams held out of the scene, over the reconstructed frame.
+// Particles, laser beams and reflex sight reticles held out of the scene, over
+// the reconstructed frame.
 // Soft particles and laser dots read the display-size position copy; the depth
 // test uses the scene depth reprojected to display resolution. With the post
 // chain before reconstruction there are no twins: the beams go over its result,
@@ -419,7 +420,8 @@ void CRenderTarget::dlss_post_effects(float jitterX, float jitterY)
 	if (!reported_post_effects)
 	{
 		Msg("[Upscaler] %s drawn after reconstruction%s: native=%ux%u, scene=%ux%u",
-			withPostChain && ps_r_upscaler_particles_after ? "Particles and laser beams" : "Laser beams",
+			withPostChain && ps_r_upscaler_particles_after ? "Particles, laser beams and reflex reticles" :
+				"Laser beams and reflex reticles",
 			withPostChain ? "" : ", after post-processing", Device.dwWidth, Device.dwHeight,
 			dlss::RenderWidth(), dlss::RenderHeight());
 		reported_post_effects = true;
@@ -436,7 +438,7 @@ void CRenderTarget::dlss_post_effects(float jitterX, float jitterY)
 
 	phase_dlss_native_depth(jitterX, jitterY);
 #ifdef XR_DX12_BRIDGE
-	// The beams again over black, for frame generation's HUD-less image.
+	// The beams and reticles again over black, for frame generation's HUD-less image.
 	if (fg_mask_begin())
 		RImplementation.GMBase.r_dsgraph_render_fg_mask(false);
 #endif
@@ -601,8 +603,9 @@ void CRenderTarget::phase_dlss_postprocess()
 		phase_dlss_scope(sceneJitter.x, sceneJitter.y);
 
 #ifdef XR_DX12_BRIDGE
-	// Reflex sight reticles drawn in the scene: again over black, at display
-	// resolution without jitter, for frame generation's HUD-less image.
+	// Reflex sight reticles left in the scene (effects not held this frame): again
+	// over black, at display resolution without jitter, for frame generation's
+	// HUD-less image.
 	if (!RImplementation.GMBase.RGraph.mapFgReticles.empty())
 	{
 		ID3DRenderTargetView* target = RCache.get_RT();
