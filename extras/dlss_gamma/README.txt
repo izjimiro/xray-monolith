@@ -21,6 +21,8 @@ Audited enabled loose-file providers in G.A.M.M.A. Co-op, 2026-10-07:
     night_vision.h
   Optional WearableDevices:
     wd_body.vs (body and alpha-tested chassis/bracer materials)
+  Upstream 3D icons (the renderer loads these at startup):
+    ui_icons.s, ui_icons.vs, ui_icons.ps, ui_icons_pp.s, ui_icons_pp.ps
   New integration files:
     dlss_contract.h, dlss_copy.ps, dlss_cas.h, dlss_sharpen.ps, dlss_ui_depth.ps
     dlss_display_copy.ps, dlss_sunshaft_mask.ps, dlss_hdr.h, dlss_hdr_encode.ps,
