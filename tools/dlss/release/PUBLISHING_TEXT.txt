@@ -42,7 +42,7 @@ Turn MSAA off and select the upscaler in Video > Basic.
 See INSTALL.txt for requirements, detailed steps and rollback.
 
 REQUIREMENTS
-Tested shader combination: SSS Update 23 (Update23_5), Atmospherics 2.69 RC7.5,
+Tested shader combination: SSS Update 23 (Update23_5), Atmospherics 2.69 RC8.1,
 and the audited GAMMA version of Beef's shader-based NVGs.
 Other versions/modlists may need a compatibility merge. This is NOT a generic
 drop-in shader patch for every Anomaly installation.

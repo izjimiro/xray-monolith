@@ -37,7 +37,7 @@ D3D12Core.dll is included, under its license.
 Shader providers (original author notices retained):
 Ascii1457 — Screen Space Shaders, audited Update23_5
 https://www.moddb.com/addons/screen-space-shaders
-Hippobot — Atmospherics, audited 2.69 RC7.5
+Hippobot — Atmospherics, audited 2.69 RC8.1
 https://www.moddb.com/mods/stalker-anomaly/addons/hippos-shaders-and-atmospherics
 theRealBeef — Beef's shader-based NVGs, audited GAMMA package
 https://www.moddb.com/addons/beefs-shader-based-nvgs-v10

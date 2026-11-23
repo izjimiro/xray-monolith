@@ -11,34 +11,25 @@
   ],
   "atmos_sources": [
     {
-      "version": "2.69 RC7.5",
-      "file": "deffer_impl_flat.ps",
-      "original_sha256": "273f6312624ad4bf6d56c994cc26f9ec15c700f2c8b13c165c6dddc31eac9cb1",
-      "original_sha256_lf": "042ee6b4a495c8d49205bf1b7d28f7afb13fbcec998af12240bcbed6bb727344"
-    },
-    {
-      "version": "2.69 RC7.6",
-      "file": "deffer_impl_flat.ps",
-      "original_sha256": "273f6312624ad4bf6d56c994cc26f9ec15c700f2c8b13c165c6dddc31eac9cb1",
-      "original_sha256_lf": "042ee6b4a495c8d49205bf1b7d28f7afb13fbcec998af12240bcbed6bb727344"
-    },
-    {
-      "version": "2.69 RC7.71",
+      "version": "2.69 RC8.1",
       "file": "deffer_impl_flat.ps",
       "archive_member": "In common/gamedata/shaders/r3/deffer_impl_flat.ps",
-      "original_sha256": "273f6312624ad4bf6d56c994cc26f9ec15c700f2c8b13c165c6dddc31eac9cb1",
-      "original_sha256_lf": "042ee6b4a495c8d49205bf1b7d28f7afb13fbcec998af12240bcbed6bb727344",
-      "component": "atmos_rc7",
-      "patched_from": "extras/dlss_gamma/gamedata/shaders/r3/deffer_impl_flat.ps"
+      "original_sha256": "6a9054005cac185ace066623d4e54182df97fe81ceee2a5180c8d8c1a75dc35e",
+      "original_sha256_lf": "829b2657ef5882bce7da7d60be2f3bb3600444531e09c314af5db6e212168e98",
+      "component": "atmos_rc81",
+      "patched_from": "extras/dlss_gamma/gamedata/shaders/r3/deffer_impl_flat.ps",
+      "patched_sha256": "10b9272bbcbdee1d6af5c40a75097999d5a2dad3fd73ba700a0e87254d234fe8"
     },
     {
-      "version": "2.69 RC8",
-      "file": "deffer_impl_flat.ps",
-      "archive_member": "In common/gamedata/shaders/r3/deffer_impl_flat.ps",
-      "original_sha256": "273f6312624ad4bf6d56c994cc26f9ec15c700f2c8b13c165c6dddc31eac9cb1",
-      "original_sha256_lf": "042ee6b4a495c8d49205bf1b7d28f7afb13fbcec998af12240bcbed6bb727344",
-      "component": "atmos_rc7",
-      "patched_from": "extras/dlss_gamma/gamedata/shaders/r3/deffer_impl_flat.ps"
+      "version": "2.69 RC8.1",
+      "file": "deffer_grass.vs",
+      "archive_member": "In common/gamedata/shaders/r3/deffer_grass.vs",
+      "original_sha256": "7102c426c2735384d78b5732d2ff54ac8700eb6907b8f2368662056b7e094a2c",
+      "original_sha256_lf": "186f1df9cd59c923a361b15842fbeaf4a0b302c1eb509f0e947dd39302f8f6be",
+      "component": "base",
+      "merged_into": "extras/dlss_gamma/gamedata/shaders/r3/deffer_grass.vs",
+      "merged": "per-blade direction in M2.xy",
+      "patched_sha256": "45b19e2717642a11c4139803779684edb2adbc5cf47764ba887cf3d77e5d855c"
     }
   ],
   "stock_atmospherics": {
@@ -71,69 +62,39 @@
         "patched_sha256": "0641e1395f0a8d23131be770b6cb68d06e581e9645fead4a0ce3aa92f3c373cc"
       },
       {
-        "component": "better_beefs_atmos_rc7",
+        "component": "better_beefs_atmos_rc81",
         "file": "combine_2_naa.ps",
-        "source": "Atmospherics 2.69 RC7.6/gamedata/shaders/r3/combine_2_naa.ps",
-        "original_sha256": "f9adb91832b20fce93dfa4c50fff1a20e8afed829b9d618268147b9a2919e469",
-        "patched_sha256": "a82ab803b91b496cdead33107dcff24911e8ed8e5ebacfef671d223327298b76"
-      },
-      {
-        "component": "better_beefs_atmos_rc8",
-        "file": "combine_2_naa.ps",
-        "source": "Atmospherics 2.69 RC8 hotfix 4/In common/gamedata/shaders/r3/combine_2_naa.ps",
-        "original_sha256": "9b42a562e5866b9ab689f18d10fb79ce824988565cfd8ca67bf28fc8e7bc5fc0",
-        "original_sha256_lf": "d736f51751b7f318720732934faebf1102998b473366029aacd3f900f910e487",
-        "patched_sha256": "a0cd8e319764fe8133a7a27c290a9a1a0759699bfdf655a1d87ec94c5fc2e36e",
-        "previous_source": {
-          "source": "Atmospherics 2.69 RC8/In common/gamedata/shaders/r3/combine_2_naa.ps",
-          "original_sha256_lf": "71648f4daf6587b39ba28a51d8b56eae4fd29234b812e3531143179bc5636016",
-          "patched_sha256": "2eb3262f8d522faa0c757f47305d0c41c9c30a64086e7314994ac11d2a80a7f2"
-        }
+        "source": "Atmospherics 2.69 RC8.1/In common/gamedata/shaders/r3/combine_2_naa.ps",
+        "original_sha256": "e05bd6f12af124e96ed4c7a0356426939a6e5f6d70fcd0e101f82a2973bd380c",
+        "original_sha256_lf": "c61242d4f0af13fded77019c402be3922056254345cf3d2ee6d0500b8e59c51a",
+        "patched_sha256": "efaae539759b518aa34d7f0a9d8faa88837a8b33748128048574c5342b30a6f5"
       }
-    ],
-    "atmos_combine_original_sha256_lf": "f9adb91832b20fce93dfa4c50fff1a20e8afed829b9d618268147b9a2919e469",
-    "atmos_combine_original_identical_versions": [
-      "2.69 RC7.5",
-      "2.69 RC7.6"
     ]
   },
   "glossy_puddles": {
-    "source_package": "Glossy Puddles Overhaul v2.5 - Erandis",
-    "source_archive_sha256": "3183394516fd3423e538b494023708137dfa9fcdd1d00b4a089f451039ca5e5a",
+    "source_package": "Glossy Puddles Overhaul v2.6 - Erandis",
+    "source_archive_sha256": "9c83542736d7299b19a09dd09f930bb50b699a4db2e576de50f4aade42a28f27",
     "files": [
       {
         "component": "glossy_puddles_pbr",
         "file": "deffer_impl_flat.ps",
-        "source": "Glossy Puddles v2.5 - PBR Puddles - Erandis\\gamedata\\shaders\\r3\\deffer_impl_flat.ps",
-        "original_sha256": "9802f79dd790ef57c383d4c0ffc856444a60e523bccff8708fdf40297098270d",
-        "original_sha256_lf": "8468975577a595044d916a8f91fce4408f532ff2063afe72afa0a50a486ab83b",
-        "patched_sha256": "9d26c6eac52a50872c93a81305f9ef589be83a2899a284b7b5fee73949cd37d2"
+        "source": "Glossy Puddles v2.6 - PBR Puddles - Erandis\\gamedata\\shaders\r3\\deffer_impl_flat.ps",
+        "original_sha256": "5e639c00af151a108997c64f770bbde5525bab435215ff453afe0f0070fe1c61",
+        "original_sha256_lf": "c89a9a2cadf093ddc4073d0007bd90f6d662587c167b483b4f212e55b890cfb0",
+        "patched_sha256": "5d12ef43a6c5aa90ca57930d923158fcefc76c2dfee3f0eeec87317210125e0a"
       },
       {
         "component": "glossy_puddles_sss",
         "file": "deffer_impl_flat.ps",
-        "source": "Glossy Puddles v2.5 - SSS Puddles - Erandis\\gamedata\\shaders\\r3\\deffer_impl_flat.ps",
-        "original_sha256": "3c16112d4052e6fd92011abdc234bffd631945c8254a3ac3c593e6bf7d71130d",
-        "original_sha256_lf": "6058778b7997242377ff83e8611d25c8cc17fb32fb79fd65dc0a5c6d9b83b4b3",
-        "patched_sha256": "ffec9a24b7fcdd2eb44f647401a79a216823b106dacd464f58c8c0044181a996"
+        "source": "Glossy Puddles v2.6 - SSS Puddles - Erandis\\gamedata\\shaders\r3\\deffer_impl_flat.ps",
+        "original_sha256": "258acc8599ce279cef88e6e22fe38a848148be21c266ec6b6fdea2fb6c1faf98",
+        "original_sha256_lf": "d7551a92232181b9f254f706e77767f07ef4fefcbbdf69ac87a1d5a65307ca96",
+        "patched_sha256": "0f983de74775dfab546d84ea46278f92f4c948acdfca101b892421fa4e0606aa"
       }
-    ],
-    "previous_source": {
-      "source_package": "Glossy Puddles Overhaul v2.4 - Erandis",
-      "source_archive_sha256": "197ed614737db337b0463e56df292be4df8397a87dfe71a5a0df16ed64c59af7",
-      "patched_sha256": {
-        "glossy_puddles_pbr": "967433d08b000d876b2fd6bd36c75ece259035909e711e54986597157045b4fa",
-        "glossy_puddles_sss": "1ea6b397eca4cad1716bb9fa63acd607a6ca0ed36409d817689b77101af7f478"
-      }
-    }
+    ]
   },
-  "atmos_rc8_archive": {
-    "archive": "Atmospherics 2.69 RC8.7z",
-    "sha256": "6861dcb94e5d1d3424376e3c3469ca2f3f421074ea8afa98f85a68de1d5866fd"
-  },
-  "atmos_rc8_hotfix4_archive": {
-    "archive": "Atmospherics 2.69 RC8 hotfix 4.7z",
-    "sha256": "dc67abab9d864ac85dc35e38c27addd703090561e52af9e4cd143e06dfaa6596",
-    "deffer_impl_flat_sha256": "273f6312624ad4bf6d56c994cc26f9ec15c700f2c8b13c165c6dddc31eac9cb1"
+  "atmos_rc81_archive": {
+    "archive": "Atmospherics 2.69 RC8.1.7z",
+    "sha256": "c183324cd91fea0db7788de5f154beaa72c288ed7cf5de3d0351967a5c5763a7"
   }
 }

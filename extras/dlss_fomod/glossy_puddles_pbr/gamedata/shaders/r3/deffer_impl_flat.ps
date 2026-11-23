@@ -1,6 +1,6 @@
 #ifndef GP_BUS_ERANDIS_DECLARED
 #define GP_BUS_ERANDIS_DECLARED
-uniform float4 bus_erandis; // Glossy Puddles: 0 / 0 / 0 / puddle gloss in w ( monkey_gloss.script )
+uniform float4 bus_erandis;
 #endif
 
 #include "check_screenspace.h"
@@ -13,6 +13,12 @@ uniform float4 bus_erandis; // Glossy Puddles: 0 / 0 / 0 / puddle gloss in w ( m
 
 #include "screenspace_common_ripples.h"
 #include "erandis_puddle_ripples.h"
+#include "gp_prank.h"
+
+#ifndef GP_BUS_AFTERGLOW_DECLARED
+#define GP_BUS_AFTERGLOW_DECLARED
+uniform float4 bus_emission_afterglow;
+#endif
 
 Texture2D s_puddles_normal;
 Texture2D s_puddles_perlin;
@@ -73,10 +79,8 @@ f_deffer 	main	( p_flat I 		)
 	// Wetness factor
 	float wetness_f = rain_params.y;
 
-	// Puddle growth ( Glossy Puddles ): only changes with G_PUDDLES_ALLWAYS
 	float growth_f = 1.0f;
 
-	// Always render puddles if G_PUDDLES_ALLWAYS is defined. Dry size, swelling in rain
 	#ifdef G_PUDDLES_ALLWAYS
 		wetness_f = 1.0f;
 		growth_f = lerp(G_PUDDLES_DRY_LEVEL, 1.0f, saturate(rain_params.y));
@@ -94,7 +98,6 @@ f_deffer 	main	( p_flat I 		)
 	// Puddles perlin
 	float puddles = saturate((s_puddles_perlin.Sample(smp_base, I.tcdh * 15.0f / G_PUDDLES_GLOBAL_SIZE).r - size_f) * puddles_f);
 
-	// Depth of the water ( 0 = shallow rim, 1 = deepest )
 	float depth_n = saturate(puddles / G_PUDDLES_FLAT_DEPTH_RANGE);
 
 	// Get normals and transform space to create a slope mask
@@ -110,7 +113,6 @@ f_deffer 	main	( p_flat I 		)
 	// Slope & texture mask defines final puddles intensity
 	puddles *= slope * puddles_mask;
 
-	// Puddles border hardness. The puddle starts after the damp ring: damp = the ring, puddles = water
 	float edge_w = max(saturate(0.3f - G_PUDDLES_BORDER_HARDNESS * 0.3f), 0.001f);
 	float damp = smoothstep(0.0f, G_PUDDLES_FLAT_DAMP_WIDTH, puddles);
 	puddles = smoothstep(G_PUDDLES_FLAT_DAMP_WIDTH, G_PUDDLES_FLAT_DAMP_WIDTH + edge_w, puddles);
@@ -170,32 +172,32 @@ f_deffer 	main	( p_flat I 		)
 	float3 dt = d_R + d_G + d_B + d_A;
 	D.rgb = 2 * D.rgb * dt;
 
-	// Damp ring: wet-look darkening ( darks get richer, brights stay bright )
 	D.rgb = pow(max(D.rgb, 0.0001f), lerp(1.0f, G_PUDDLES_DAMP_GAMMA, damp_ring));
 
 	// Apply tint
 	D.rgb = lerp( D.rgb, D.rgb * G_PUDDLES_TINT, puddles);
 
-	// Deeper water is darker
 	D.rgb *= lerp(float3(1.0f, 1.0f, 1.0f), G_PUDDLES_DEPTH_DARKEN, puddles * depth_n);
 	D.rgb *= 1.0f + erandis_wk.z;
 
-	// Puddle gloss ( Glossy Puddles ). bus_erandis.w: time of day + weather ( monkey_gloss.script )
 	float water_src    = saturate(bus_erandis.w);
 	water_src          = (water_src > 0.001f) ? water_src : G_PUDDLES_FALLBACK_GLOSS;
 	float water_gloss  = min(water_src, G_PUDDLES_REFLECTIVITY);
 	float puddle_gloss = water_gloss * lerp(G_PUDDLES_SHALLOW_GLOSS, 1.0f, depth_n);
 	float ground_gloss = g_R + g_G + g_B + g_A;
 
-	// Extra wetness. Full intensity at 50% of wetness ( rain_params.y )
 #ifndef SSFX_NEWGLOSS
 	ground_gloss += saturate(rain_params.y * 2.0f) * G_PUDDLES_TERRAIN_EXTRA_WETNESS * (1.0f - puddles);
 #endif
 
-	// Damp ring and puddles
 	float damp_gloss = min(max(water_gloss * G_PUDDLES_DAMP_GLOSS, G_PUDDLES_DAMP_GLOSS_MIN), water_gloss);
 	G = lerp(ground_gloss, max(ground_gloss, damp_gloss), damp_ring);
 	G = lerp(G, puddle_gloss, puddles);
+	D.rgb = lerp(D.rgb, D.rgb * bus_emission_afterglow.yzw, saturate(max(puddles, damp_ring * G_PUDDLES_AFTERGLOW_DAMP) * bus_emission_afterglow.x));
+	#if GP_PRANK
+		D.rgb = lerp(D.rgb, float3(1.0f, 1.0f, 0.0f), damp_ring);
+		D.rgb = lerp(D.rgb, float3(0.0f, 1.0f, 0.0f), puddles * 0.5f);
+	#endif
 
   #else
 	float3	N 	= I.N.xyz	;

@@ -148,6 +148,12 @@ v2p_bumped 	main (v_detail v)
 	// Alpha here
 	xform[0].x = data.w;
 
+	// Atmospherics 2.69 RC8.1: blade direction for its grass pixel shader's
+	// fake up normal. Other grass pixel shaders read only M2.z.
+	float2 blade_x = normalize(float2(m0.x, m2.x) + float2(1e-6f, 0.0f));
+	xform[1].x = blade_x.x;
+	xform[1].y = blade_x.y;
+
 	// Feed this transform to pixel shader
 	O.M1 			= xform[0];
 	O.M2 			= xform[1];

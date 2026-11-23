@@ -1,15 +1,15 @@
-NATIVE UPSCALING BINARIES COMPATIBILITY PATCH - 0.721
+NATIVE UPSCALING BINARIES COMPATIBILITY PATCH - 0.73
 https://github.com/brodrigz/xray-monolith
 
 INSTALL
 -------
-1. Install Native Upscaling Binaries 0.72 using that release's instructions.
+1. Install Native Upscaling Binaries 0.73 using that release's instructions.
 2. Install and enable SSS 23.5 with GAMMA's recommended options.
 3. Install this ZIP through MO2:
    - Page 1: leave the required SSS 23.5 option checked.
    - Page 2: choose your installed Atmospherics version, or None.
-     RC7.5 to RC7.71 share the RC7 choice and RC8 has its own, whatever
-     options you picked in the Atmospherics installer.
+     The RC8.1 choice works with whatever options you picked in the
+     Atmospherics installer.
    - Page 3: select only the add-ons you have installed.
 4. Enable this patch BELOW SSS, Atmospherics and any other shader mods
    in MO2's left pane.
@@ -36,22 +36,29 @@ Better Beef's NVGs (.19):
   Put its patches below its main files, and this compatibility patch last.
   Clear the shader cache through the launcher after changing NVG mods.
 
-Glossy Puddles Overhaul v2.5 (Erandis):
+Glossy Puddles Overhaul v2.6 (Erandis):
   Select only if the original mod is installed and enabled.
-  Requires Glossy Puddles v2.5; with older versions the game fails to
+  Requires Glossy Puddles v2.6; with older versions the game fails to
   compile shaders. Update Glossy Puddles first.
   The patch picks the matching version from your Atmospherics choice:
-    Atmospherics RC7 or RC8 -> Glossy Puddles "PBR Shader Based Weathers"
-    anything else           -> Glossy Puddles "SSS Based Weathers"
+    Atmospherics RC8.1 -> Glossy Puddles "PBR Shader Based Weathers"
+    anything else      -> Glossy Puddles "SSS Based Weathers"
   Put Glossy Puddles above this compatibility patch in MO2's left pane.
 
-Atmospherics RC8 hotfix 4 is supported; earlier RC8 builds still work.
+ATMOSPHERICS
+------------
+Supported: stock GAMMA Atmospherics (2.68.93 Hotfix 3) and 2.69 RC8.1.
+RC7.x and RC8 (any hotfix) are no longer supported; update to RC8.1.
 
-WHAT'S NEW IN 0.721
--------------------
-Uses the same 0.72 binaries; only this compatibility patch changed.
-- Glossy Puddles v2.5: its new footstep ripples now show on flat ground.
-- Better Beef's + Atmospherics RC8: keeps hotfix 4's new bloom blending.
+WHAT'S NEW IN 0.73
+------------------
+- Atmospherics RC8.1 support. The RC7 and RC8 choices are gone.
+  - Grass keeps RC8.1's per-blade lighting direction.
+  - Flat ground keeps RC8.1's version of its shader.
+  - Better Beef's + RC8.1 keeps RC8.1's bloom changes.
+  - RC8.1's blood decals use their smoother dither with DLSS / FSR.
+- Glossy Puddles v2.6 (required, v2.5 no longer supported): its afterglow
+  tint now shows on flat ground.
 
 UPDATING OR CHANGING OPTIONS
 ---------------------------

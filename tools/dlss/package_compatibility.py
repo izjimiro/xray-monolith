@@ -13,11 +13,11 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / "extras/dlss_fomod"
 LEGACY = REPO / "extras/dlss_gamma/gamedata"
-VERSION = "0.721"
-# The only shader Atmospherics RC7.x and this patch both replace. SSS and Atmospherics
+VERSION = "0.73"
+# The only shader Atmospherics RC8.1 and this patch both replace. SSS and Atmospherics
 # keep their own ssfx_* shaders; the upscaler needs no changes in them.
 ATMOS_FILES = ("deffer_impl_flat.ps",)
-# Glossy Puddles Overhaul v2.5 deffer_impl_flat.ps, one per weather family.
+# Glossy Puddles Overhaul v2.6 deffer_impl_flat.ps, one per weather family.
 GLOSSY_PUDDLES = ("glossy_puddles_pbr", "glossy_puddles_sss")
 
 
@@ -45,7 +45,7 @@ def build(output: Path, version: str = VERSION) -> None:
         if relative == Path("shaders/r3/wd_body.vs"):
             component = "wearable"
         elif relative.parent == Path("shaders/r3") and relative.name in ATMOS_FILES:
-            component = "atmos_rc7"
+            component = "atmos_rc81"
         else:
             component = "base"
         copy_file(source, stage / "components" / component / "gamedata" / relative)
@@ -57,7 +57,7 @@ def build(output: Path, version: str = VERSION) -> None:
             stage / "components/base/gamedata/shaders/r3" / name,
         )
 
-    for component in ("better_beefs", "better_beefs_atmos_rc7", "better_beefs_atmos_rc8", *GLOSSY_PUDDLES):
+    for component in ("better_beefs", "better_beefs_atmos_rc81", *GLOSSY_PUDDLES):
         component_source = SOURCE / component / "gamedata"
         for source in sorted(component_source.rglob("*")):
             if source.is_file():
@@ -74,11 +74,10 @@ def build(output: Path, version: str = VERSION) -> None:
     selections = {
         "atmos_none.txt": "Selected: no Atmospherics.",
         "atmos_26893.txt": "Selected: Atmospherics 2.68.93 Hotfix 3 (stock GAMMA 0.9.5).",
-        "atmos_rc7.txt": "Selected: Atmospherics 2.69 RC7.x (RC7.5 to RC7.71).",
-        "atmos_rc8.txt": "Selected: Atmospherics 2.69 RC8 (any hotfix).",
+        "atmos_rc81.txt": "Selected: Atmospherics 2.69 RC8.1.",
         "wearable.txt": "Selected: WearableDevices compatibility.",
         "better_beefs.txt": "Selected: Better Beef's NVGs (.19) compatibility.",
-        "glossy_puddles.txt": "Selected: Glossy Puddles Overhaul v2.5 compatibility.",
+        "glossy_puddles.txt": "Selected: Glossy Puddles Overhaul v2.6 compatibility.",
     }
     for name, description in selections.items():
         write_text(stage / "selections" / name, f"{description}\nPatch: {version}\n")

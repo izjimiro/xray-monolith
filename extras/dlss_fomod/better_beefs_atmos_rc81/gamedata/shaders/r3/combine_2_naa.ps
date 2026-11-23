@@ -3,6 +3,7 @@
 
 // Check Screen Space Shaders modules
 #include "check_screenspace.h"
+#include "atmos_features.h"
 #include "atmos_dither.h"
 
 #ifdef SSFX_BEEFS_NVG
@@ -13,7 +14,6 @@
     #include "screenspace_debanding.h"
 #endif
 
-// Used by FOG and IL.
 uniform float4 fakescope_params3;
 
 #ifdef SSFX_LUT_INUSE
@@ -47,9 +47,18 @@ float4 e_kernel;
 #include "mblur.h"
 #include "img_corrections.h"
 #include "tonemapping.h"
+
+float3 atmos_bloom_add(float3 img, float4 bloom)
+{
+#if defined(SSFX_BLOOM) && ATMOS_BLOOM_PHYS
+    float3 lin = tonemap_sRGB_inv(SRGBToLinear(img), PBRN_WHITE);
+    return tonemap_sRGB_delta(img, lin, lin * (1.0f - bloom.a) + bloom.rgb, PBRN_WHITE);
+#else
+    return tonemap_add_sRGB(img, bloom.xyz*bloom.w, PBRN_WHITE);
+#endif
+}
 //////////////////////////////////////////////////////////////////////////////////////////
 
-// [FIX] RENAMED HASH FUNCTION
 float safe_dither_hash(float2 p)
 {
     float3 p3  = frac(float3(p.xyx) * .1031);
@@ -57,25 +66,21 @@ float safe_dither_hash(float2 p)
     return frac((p3.x + p3.y) * p3.z);
 }
 
-// Strength: 0.0 to 1.0 (How much contrast to add)
-#define CLARITY_POWER    0.25   
+#define CLARITY_POWER    0.25
 
-// Radius: 1.0 to 3.0 (Higher = wider "structure", Lower = finer "sharpness")
-#define CLARITY_SPREAD   1.5    
+#define CLARITY_SPREAD   1.5
 
-// Clamp: 0.05 to 0.2 (Prevents glowing edges/halos. Lower = stricter safety)
-#define CLARITY_CLAMP    0.10   
+#define CLARITY_CLAMP    0.10
 
-// Soft Limit Helper
 float soft_limit(float val, float limit)
 {
-    return limit * tanh(val / limit); 
+    return limit * tanh(val / limit);
 }
 
 float3 apply_smart_clarity(float3 img, float2 tc, float depth)
 {
     if (depth <= SKY_EPS) return img;
-    float dist_fade = 1.0 - smoothstep(50.0, 300.0, depth); // Fade starts at 50m, ends at 300m
+    float dist_fade = 1.0 - smoothstep(50.0, 300.0, depth);
     if (dist_fade <= 0.01) return img;
 
     float2 px = (1.0 / screen_res.xy) * CLARITY_SPREAD;
@@ -84,16 +89,16 @@ float3 apply_smart_clarity(float3 img, float2 tc, float depth)
 
     float3 blur = 0;
     float w_total = 0;
-    
-    blur += img * 4.0; w_total += 4.0; 
-    
+
+    blur += img * 4.0; w_total += 4.0;
+
     blur += s_image.Sample(smp_rtlinear, tc + float2( px.x,  0.0)).rgb;
     blur += s_image.Sample(smp_rtlinear, tc + float2(-px.x,  0.0)).rgb;
     blur += s_image.Sample(smp_rtlinear, tc + float2( 0.0,  px.y)).rgb;
     blur += s_image.Sample(smp_rtlinear, tc + float2( 0.0, -px.y)).rgb;
     w_total += 4.0;
 
-    float2 diag = px * 1.5; // Push these samples further out
+    float2 diag = px * 1.5;
     blur += s_image.Sample(smp_rtlinear, tc + float2( diag.x,  diag.y)).rgb;
     blur += s_image.Sample(smp_rtlinear, tc + float2(-diag.x, -diag.y)).rgb;
     blur += s_image.Sample(smp_rtlinear, tc + float2(-diag.x,  diag.y)).rgb;
@@ -105,12 +110,12 @@ float3 apply_smart_clarity(float3 img, float2 tc, float depth)
 
     float detail = luma_center - luma_blur;
 
-    float shadow_mask = smoothstep(0.0, 0.15, luma_center); 
-    
+    float shadow_mask = smoothstep(0.0, 0.15, luma_center);
+
     detail = soft_limit(detail, CLARITY_CLAMP);
 
     float3 final_detail = detail * CLARITY_POWER * shadow_mask * dist_fade * 5.0;
-    
+
     return img + (img * final_detail);
 }
 
@@ -160,7 +165,6 @@ c2_out main( v2p_aa_AA I )
     img = mblur( center, ( gbd ).P, img.rgb);
 
 #ifdef SSFX_DEBAND
-    // Sky only, and only computed there ( the stock lerp ran the deband for every pixel )
     [branch]
     if (depth <= SKY_EPS)
         img = ssfx_debanding_atmos(img, I.Tex0.xy, I.HPos.xy);
@@ -171,20 +175,12 @@ c2_out main( v2p_aa_AA I )
 #ifdef SSFX_BEEFS_NVG
     float lua_param_nvg_generation = floor(shader_param_8.x);
     float lua_param_nvg_num_tubes = frac(shader_param_8.x) * 10.0f;
-    if (lua_param_nvg_generation < 0.01f && compute_lens_mask(aspect_ratio_correction(I.Tex0), lua_param_nvg_num_tubes) == 0.0f)
+    if (lua_param_nvg_generation < 0.01f && compute_lens_mask(aspect_ratio_correction(I.Tex0), lua_param_nvg_num_tubes) < 0.5f)
     {
-#ifdef PBRN_WHITE
-        img = tonemap_add_sRGB(img, bloom.xyz*bloom.w, PBRN_WHITE);
-#else
-        img = blend_soft(img, bloom.xyz*bloom.w);
-#endif
+        img = atmos_bloom_add(img, bloom);
     }
 #else
-#ifdef PBRN_WHITE
-    img = tonemap_add_sRGB(img, bloom.xyz*bloom.w, PBRN_WHITE);
-#else
-    img = blend_soft(img, bloom.xyz*bloom.w);
-#endif
+    img = atmos_bloom_add(img, bloom);
 #endif
 
 // Color grading --------------------------------
@@ -208,23 +204,26 @@ c2_out main( v2p_aa_AA I )
 #endif
 #endif
 // ----------------------------------------------
-        
+
 #ifdef      USE_DISTORT
+#if defined(SSFX_BLOOM) && ATMOS_BLOOM_PHYS
+     float3    blurred    = s_blur_2.Sample(smp_rtlinear, center).rgb;
+#else
      float3    blurred    = bloom*def_hdr    ;
+#endif
             img        = lerp    (img,blurred,distort.z);
 #endif
 
-    // Final Dither and Clamp
     img = saturate(img);
     float luma = dot(img, float3(0.299, 0.587, 0.114));
     float dither_mask = smoothstep(0.0, 0.01, luma);
-    img += atmos_tpdf(I.HPos.xy) * (ATMOS_DITHER_STEPS / 255.0f) * dither_mask;   // triangular, +-1 step
+    img += atmos_tpdf(I.HPos.xy) * (ATMOS_DITHER_STEPS / 255.0f) * dither_mask;
     res.Color = float4(saturate(img), 1.0);
 
 #ifdef USE_MSAA
     float4 ptp = mul(m_P, float4(gbd.P, 1));
     res.Depth = ptp.w==0?1:ptp.z/ptp.w;
 #endif
-    
+
     return res;
 }

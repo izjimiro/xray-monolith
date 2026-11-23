@@ -14,8 +14,9 @@ Audited enabled loose-file providers in G.A.M.M.A. Co-op, 2026-10-07:
     vert.vs (upscaler jitter for blended alpha surfaces)
   Base game:
     particle.vs, particle-clip.vs, lmape.vs (upscaler jitter)
-  Atmospherics 2.69 RC7.5:
-    deffer_impl_flat.ps
+  Atmospherics 2.69 RC8.1:
+    deffer_impl_flat.ps (RC8.1's own deffer_grass.vs is replaced by the SSS
+    one above, which carries RC8.1's per-blade direction)
   (Since 0.63 no ssfx_* shader is overridden; SSS / Atmospherics use their own.)
   189- Beef's NVG - theRealBeef:
     night_vision.h
