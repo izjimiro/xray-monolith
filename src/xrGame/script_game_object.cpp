@@ -61,7 +61,7 @@ Fvector CScriptGameObject::Center(bool bHud)
 	if (bHud)
 	{
 		CHudItem* itm = smart_cast<CHudItem*>(&object());
-		if (itm)
+		if (itm && itm->HudItemData())
 			return itm->HudItemData()->m_model->dcast_RenderVisual()->getVisData().sphere.P;
 	}
 
@@ -77,7 +77,7 @@ Fmatrix CScriptGameObject::Xform(bool bHud)
 	if (bHud)
 	{
 		CHudItem* itm = smart_cast<CHudItem*>(&object());
-		if (itm)
+		if (itm && itm->HudItemData())
 		{
 			xform = &itm->HudItemData()->m_item_transform;
 		}
@@ -98,7 +98,7 @@ Fbox CScriptGameObject::bounding_box(bool bHud)
 	if (bHud)
 	{
 		CHudItem* itm = smart_cast<CHudItem*>(&object());
-		if (itm)
+		if (itm && itm->HudItemData())
 			return itm->HudItemData()->m_model->dcast_RenderVisual()->getVisData().box;
 	}
 
@@ -563,9 +563,9 @@ u16 CScriptGameObject::bone_id(LPCSTR bone_name, bool bHud)
 	{
 		CActor* act = smart_cast<CActor*>(&object());
 		CHudItem* itm = smart_cast<CHudItem*>(&object());
-		if (itm)
+		if (itm && itm->HudItemData())
 			k = itm->HudItemData()->m_model;
-		else if (act)
+		else if (act && g_player_hud)
 			k = g_player_hud->m_model->dcast_PKinematics();
 	} else {
 		k = object().Visual()->dcast_PKinematics();
@@ -591,11 +591,11 @@ Fmatrix CScriptGameObject::bone_transform(u16 bone_id, bool bHud, bool bPrev)
 	{
 		CActor* act = smart_cast<CActor*>(&object());
 		CHudItem* itm = smart_cast<CHudItem*>(&object());
-		if (itm)
+		if (itm && itm->HudItemData())
 		{
 			k = itm->HudItemData()->m_model;
 			xform = bPrev ? &itm->HudItemData()->m_item_transform_prev : &itm->HudItemData()->m_item_transform;
-		} else if (act)
+		} else if (act && g_player_hud)
 		{
 			k = (bone_id > 20) ? g_player_hud->m_model->dcast_PKinematics() : g_player_hud->m_model_2->dcast_PKinematics();
 			xform = (bone_id > 20) ? (bPrev ? &g_player_hud->m_transform_prev : &g_player_hud->m_transform) : (bPrev ? &g_player_hud->m_transform_2_prev : &g_player_hud->m_transform_2);
@@ -643,9 +643,9 @@ u16 CScriptGameObject::bone_parent(u16 bone_id, bool bHud)
 	{
 		CActor* act = smart_cast<CActor*>(&object());
 		CHudItem* itm = smart_cast<CHudItem*>(&object());
-		if (itm)
+		if (itm && itm->HudItemData())
 			k = itm->HudItemData()->m_model;
-		else if (act)
+		else if (act && g_player_hud)
 			k = g_player_hud->m_model->dcast_PKinematics();
 	} else {
 		k = object().Visual()->dcast_PKinematics();
@@ -668,9 +668,9 @@ LPCSTR CScriptGameObject::bone_name(u16 bone_id, bool bHud)
 	{
 		CActor* act = smart_cast<CActor*>(&object());
 		CHudItem* itm = smart_cast<CHudItem*>(&object());
-		if (itm)
+		if (itm && itm->HudItemData())
 			k = itm->HudItemData()->m_model;
-		else if (act)
+		else if (act && g_player_hud)
 			k = g_player_hud->m_model->dcast_PKinematics();
 	} else {
 		k = object().Visual()->dcast_PKinematics();
@@ -679,6 +679,22 @@ LPCSTR CScriptGameObject::bone_name(u16 bone_id, bool bHud)
 	if (!k) return "";
 
 	return (k->LL_BoneName_dbg(bone_id));
+}
+
+void CScriptGameObject::set_physical_scope_glass_mask(LPCSTR name, bool enabled)
+{
+    CHudItem* item = smart_cast<CHudItem*>(&object());
+    if (!name || !name[0] || !item || !item->HudItemData()) return;
+    IKinematics* model = item->HudItemData()->m_model;
+    if (model) model->SetPhysicalScopeGlassMask(model->LL_BoneID(name), enabled);
+}
+
+bool CScriptGameObject::is_physical_scope_glass_bone(LPCSTR name)
+{
+    CHudItem* item = smart_cast<CHudItem*>(&object());
+    if (!name || !name[0] || !item || !item->HudItemData()) return false;
+    IKinematics* model = item->HudItemData()->m_model;
+    return model && model->IsPhysicalScopeGlassBone(model->LL_BoneID(name));
 }
 
 void CScriptGameObject::set_bone_visible(u16 bone_id, bool bVisibility, bool bRecursive, bool bHud)
@@ -691,9 +707,9 @@ void CScriptGameObject::set_bone_visible(u16 bone_id, bool bVisibility, bool bRe
 	{
 		CActor* act = smart_cast<CActor*>(&object());
 		CHudItem* itm = smart_cast<CHudItem*>(&object());
-		if (itm)
+		if (itm && itm->HudItemData())
 			k = itm->HudItemData()->m_model;
-		else if (act)
+		else if (act && g_player_hud)
 			k = (bone_id > 20) ? g_player_hud->m_model->dcast_PKinematics() : g_player_hud->m_model_2->dcast_PKinematics();
 	} else {
 		k = object().Visual()->dcast_PKinematics();
@@ -731,9 +747,9 @@ bool CScriptGameObject::is_bone_visible(u16 bone_id, bool bHud)
 	{
 		CActor* act = smart_cast<CActor*>(&object());
 		CHudItem* itm = smart_cast<CHudItem*>(&object());
-		if (itm)
+		if (itm && itm->HudItemData())
 			k = itm->HudItemData()->m_model;
-		else if (act)
+		else if (act && g_player_hud)
 			k = (bone_id > 20) ? g_player_hud->m_model->dcast_PKinematics() : g_player_hud->m_model_2->dcast_PKinematics();
 	} else {
 		k = object().Visual()->dcast_PKinematics();
@@ -754,9 +770,9 @@ bool CScriptGameObject::is_bone_visible(u16 bone_id, bool bHud)
 	{
 		CActor* act = smart_cast<CActor*>(&object());
 		CHudItem* itm = smart_cast<CHudItem*>(&object());
-		if (itm)
+		if (itm && itm->HudItemData())
 			k = itm->HudItemData()->m_model;
-		else if (act)
+		else if (act && g_player_hud)
 			k = g_player_hud->m_model->dcast_PKinematics();
 	} else {
 		k = object().Visual()->dcast_PKinematics();
@@ -1469,9 +1485,9 @@ CGameObject& CScriptGameObject::object() const
 	{
 		CActor* act = smart_cast<CActor*>(&object());
 		CHudItem* itm = smart_cast<CHudItem*>(&object());
-		if (itm)
+		if (itm && itm->HudItemData())
 			k = itm->HudItemData()->m_model;
-		else if (act)
+		else if (act && g_player_hud)
 			k = g_player_hud->m_model->dcast_PKinematics();
 	}
 
@@ -1496,9 +1512,9 @@ CGameObject& CScriptGameObject::object() const
 	{
 		CActor* act = smart_cast<CActor*>(&object());
 		CHudItem* itm = smart_cast<CHudItem*>(&object());
-		if (itm)
+		if (itm && itm->HudItemData())
 			k = itm->HudItemData()->m_model;
-		else if (act)
+		else if (act && g_player_hud)
 			k = g_player_hud->m_model->dcast_PKinematics();
 	}
 
@@ -1659,19 +1675,19 @@ void CScriptGameObject::SetShaderTexture(int id, LPCSTR shader, LPCSTR texture, 
 {
     IKinematics* k = nullptr;
 
-    if (bHud)
-    {
-        CActor* act = smart_cast<CActor*>(&object());
-        CHudItem* itm = smart_cast<CHudItem*>(&object());
-        if (itm)
-            k = itm->HudItemData()->m_model;
-        else if (act)
-        {
-            set_shader_tex(g_player_hud->m_model->dcast_RenderVisual(), id, shader, texture);
-            set_shader_tex(g_player_hud->m_model_2->dcast_RenderVisual(), id, shader, texture);
-            return;
-        }
-    }
+	if (bHud)
+	{
+		CActor* act = smart_cast<CActor*>(&object());
+		CHudItem* itm = smart_cast<CHudItem*>(&object());
+		if (itm && itm->HudItemData())
+			k = itm->HudItemData()->m_model;
+		else if (act && g_player_hud)
+		{
+			set_shader_tex(g_player_hud->m_model->dcast_RenderVisual(), id, shader, texture);
+			set_shader_tex(g_player_hud->m_model_2->dcast_RenderVisual(), id, shader, texture);
+			return;
+		}
+	}
 
 	if (!k && object().Visual())
 		k = object().Visual()->dcast_PKinematics();
@@ -1689,9 +1705,9 @@ void CScriptGameObject::ResetShaderTexture(int id, bool bHud)
 	{
 		CActor* act = smart_cast<CActor*>(&object());
 		CHudItem* itm = smart_cast<CHudItem*>(&object());
-		if (itm)
+		if (itm && itm->HudItemData())
 			k = itm->HudItemData()->m_model;
-		else if (act)
+		else if (act && g_player_hud)
 		{
 			reset_shader_tex(g_player_hud->m_model->dcast_RenderVisual(), id);
 			reset_shader_tex(g_player_hud->m_model_2->dcast_RenderVisual(), id);
@@ -1699,7 +1715,7 @@ void CScriptGameObject::ResetShaderTexture(int id, bool bHud)
 		}
 	}
 
-	if (!k)
+	if (!k && object().Visual())
 		k = object().Visual()->dcast_PKinematics();
 
 	if (!k) return;

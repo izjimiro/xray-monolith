@@ -79,11 +79,12 @@ namespace R_dsgraph
 		ShaderElement* pSE = nullptr;
 		bool b_hud_mode = false;
 		float fov = 0.f;
+		u8 hud_role = 0;
 
         DSGraphItem(T key, float _ssa, IRenderable* obj, dxRender_Visual* vis,
-            Fmatrix* mat, ShaderElement* se, bool hud, float custom_fov = 0.f)
+            Fmatrix* mat, ShaderElement* se, bool hud, float custom_fov = 0.f, u8 role = 0)
             : sortKey(key), ssa(_ssa), pObject(obj), pVisual(vis),
-            pMatrix(mat), pSE(se), b_hud_mode(hud), fov(custom_fov) {
+            pMatrix(mat), pSE(se), b_hud_mode(hud), fov(custom_fov), hud_role(role) {
         }
 
         bool operator<(const DSGraphItem& other) const noexcept
@@ -220,7 +221,11 @@ namespace R_dsgraph
         }
 	};
 
-	using RenderQueue = xr_vector<RenderPacket, render_allocator::helper<RenderPacket>::result>;
+	// sorted tracks whether the packets are already in sort key order, every append clears it
+	struct RenderQueue : xr_vector<RenderPacket, render_allocator::helper<RenderPacket>::result>
+	{
+		bool sorted = false;
+	};
 	using RenderQueueArray = xr_array<xr_array<RenderQueue, SHADER_PASSES_MAX>, 2>;
 
 	struct DynamicSceneRgraph
@@ -262,6 +267,11 @@ namespace R_dsgraph
 		mapDSGraphItems<float, false> mapWater;
 #ifdef USE_DX11
 		mapDSGraphItems<float, true> mapScopeHUDSorted;
+		mapDSGraphItems<float, true> mapPhysicalScopeGlass; // Actual routed, skinned glass; never optical ocular geometry.
+		mapDSGraphItems<float, true> mapScopeHUDObjective; // pip front objective geometry, shared by the SVP camera and forward optical-material pass
+		mapDSGraphItems<float, true> mapReflexHUDSorted; // pip reflex-sight lenses (iScopeLense==10)
+		mapDSGraphItems<float, true> mapScopeHUDOverlay; // pip non-lens 3DSS late-pass meshes (iScopeLense==11) under true PiP
+		mapDSGraphItems<float, true> mapScopeReflexHUD; // 3DSS reflex reticles (iScopeLense==10) for the reticle pass
 		mapDSGraphItems<float, false> mapScopeHUD;
 		mapDSGraphItems<float, false> mapScopeCamAttached;
 		mapDSGraphItems<float, false> mapScopeCamAttachedSorted;
@@ -276,6 +286,7 @@ namespace R_dsgraph
 					queue[_priority][iPass].clear_and_free();
 				else
 					queue[_priority][iPass].clear();
+				queue[_priority][iPass].sorted = false;
 			}
 		}
 
@@ -352,6 +363,11 @@ namespace R_dsgraph
 				mapScopeCamAttachedSorted.clear_and_free();
 				mapScopeHUD.clear_and_free();
 				mapScopeHUDSorted.clear_and_free();
+				mapScopeHUDObjective.clear_and_free();
+				mapPhysicalScopeGlass.clear_and_free();
+				mapReflexHUDSorted.clear_and_free();
+				mapScopeHUDOverlay.clear_and_free();
+				mapScopeReflexHUD.clear_and_free();
 #endif
 			}
 			else
@@ -380,6 +396,11 @@ namespace R_dsgraph
 				mapScopeCamAttachedSorted.clear();
 				mapScopeHUD.clear();
 				mapScopeHUDSorted.clear();
+				mapScopeHUDObjective.clear();
+				mapPhysicalScopeGlass.clear();
+				mapReflexHUDSorted.clear();
+				mapScopeHUDOverlay.clear();
+				mapScopeReflexHUD.clear();
 #endif
 			}
 		}

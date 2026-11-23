@@ -67,6 +67,11 @@ void CDetailManager::cache_Task(int gx, int gz, Slot* D)
 			poolSI.destroy(D->G[i].items[clr]);
 		D->G[i].items.clear();
 	}
+	if (!m_rows.empty())
+	{
+		m_rows[D - cache_pool].ready = 0;
+		m_rows[D - cache_pool].pack = 0;
+	}
 
 	if (old_type != stPending)
 	{
@@ -157,7 +162,7 @@ void CDetailManager::cache_Update(int v_x, int v_z, Fvector& view, int limit)
 	}
 
 	// Task performer
-	if(ps_r2_ls_flags.test(R2FLAG_FAST_DETAILS_UPDATE))
+	if(ps_r2_ls_flags_ext.test(R2FLAGEXT_FAST_DETAILS_UPDATE))
 	{
 		for (u32 iteration=0; iteration<cache_task.size(); iteration++)
 		{
