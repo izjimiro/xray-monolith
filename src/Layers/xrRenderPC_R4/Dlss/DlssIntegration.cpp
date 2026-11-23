@@ -400,6 +400,7 @@ unsigned RenderHeight() { return renderSize.Valid() ? renderSize.height : Device
 bool Configured() { return configured; }
 bool HdrInput() { return configured && hdrInput; }
 bool Active() { return configured && inScene && mainView && BackendReady(); }
+unsigned UpscalerKind() { return Active() ? (UsesFsr() ? 1u : 2u) : 0u; }
 Offset RasterJitter() { return rasterJitter; }
 Offset PreviousRasterJitter() { return previousJitter; }
 ID3DDepthStencilView* SceneDepth() { return inScene && configured ? sceneDepthView.Get() : HW.pBaseZB; }
