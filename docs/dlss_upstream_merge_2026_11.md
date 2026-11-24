@@ -88,3 +88,45 @@ them:
   generation afterimages.
 - 3D inventory icons, with `r4_atlas` at 0 and 1.
 - A camera-attached scope, if a mod provides one.
+
+# Upstream merge of 2026-11-22
+
+Branch `merge-upstream-2026-11-22`: our `all-in-one-vs2022-wpo-mt` (0.72 +
+compatibility patch update), then `merge-upstream-2026-11-09` above, then
+`upstream/all-in-one-vs2022-wpo-mt` at tag `2026.11.22` (129 commits since
+`2026.11.9`, 154 files). Both merges were clean, with no conflicts. DX11 and
+DX12 (`/t:xrEngine`) build with no errors and no warnings in upscaler code.
+
+## Still needed from the 11-09 merge
+
+All of it. Upstream's attachment commits only fix leaks (motion end and bone
+callbacks, physics contact functor) and add a `set_scale(x, y, z)` overload.
+`RenderAt`, `r_dsgraph_insert_dynamic`, `CCustomFOVInitializer` and the
+camera-attached scope lists are unchanged, so the stable instance transforms,
+the custom FOV previous projection and the camera-attached scope pass still
+apply. No upstream shader changed, so the `ui_icons*` copies in
+`extras/dlss_gamma` are current.
+
+## New upstream changes checked
+
+- Texture eviction (`28c76573`): adds `bNoEvict` for env cubes and colour
+  maps. Eviction already skips `$user$` and `bUser` textures, so our render
+  targets are unaffected.
+- `seqFrameMT` now runs before the parallel Lua GC (`3470feeb`). Only sound
+  and network register there; nothing of ours does.
+- Binocular vision is now a UI class, and its target frames are limited to the
+  shader-based 2D scope circle. It works from projected positions in the UI
+  pass, after `dlss::EndScene`, so it sees display resolution and no jitter.
+- `lock_to_camera` for script hand motions blends the arms toward the camera
+  each frame. HUD motion vectors still come from the previous transforms.
+- `$level$` is no longer re-pointed for an unchanged level (`e280ff81`), file
+  system locking (`ee3bab13`), weapon end-of-animation timing, and the rest are
+  outside the renderer.
+
+The reflex reticle change was ported by hand onto this branch: reticles are
+held from `mapHUDSorted` and `mapCustomFOVSorted`, and the laser mask pass
+matches both prefixes.
+
+## Not done
+
+- Not run in game.
