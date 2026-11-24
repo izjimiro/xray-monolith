@@ -667,7 +667,10 @@ void CRenderTarget::SetActive(bool force)
 	for (auto& r : RenderTargetRemaps)
 		r.first->surface_set(r.second->pSurface);
 
-	set_viewport_size(HW.pContext, (float)Width, (float)Height);
+	// DLSS: inside the scene the main view renders at the upscaler's size (the gbuffer draws right after this
+	// without an rmNormal); the SVP keeps its own size, after reconstruction it is the display size
+	set_viewport_size(HW.pContext, (float)RenderScreenWidth(), (float)RenderScreenHeight());
+	dlss::ApplyMipBias();
 	RCache.set_RT(baseRT, 0);
 	RCache.set_RT(nullptr, 1);
 	RCache.set_RT(nullptr, 2);

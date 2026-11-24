@@ -365,6 +365,55 @@ void CRenderTarget::dlss_post_restore()
 	RCache.InvalidateTextures();
 }
 
+// bodycam's late lens pass copies the frame into rt_Generic_2 (positions) and rt_Generic_temp (scene) and its 3DSS
+// shaders Load rt_Heat by display pixel: targets the twins leave at render size (rt_Generic_temp also float under
+// the HDR input). Display-size ones in the frame's formats stand in; storage swap, so SetActive's remaps and the
+// named textures follow. The same call with the same flags swaps back.
+void CRenderTarget::dlss_lens_scratch_swap(bool position, bool scene, bool heat)
+{
+	const u32 w = Device.dwWidth, h = Device.dwHeight;
+	if (position)
+	{
+		if (!rt_dlss_lens_position)
+			rt_dlss_lens_position.create("$user$dlss_lens_position", w, h, rt_Position->fmt);
+		rt_Generic_2->swap_storage(*rt_dlss_lens_position);
+	}
+	if (scene)
+	{
+		if (!rt_dlss_lens_scene)
+			rt_dlss_lens_scene.create("$user$dlss_lens_scene", w, h, rt_Generic_0->fmt);
+		rt_Generic_temp->swap_storage(*rt_dlss_lens_scene);
+	}
+	if (heat)
+	{
+		if (!rt_dlss_lens_heat)
+			rt_dlss_lens_heat.create("$user$dlss_lens_heat", w, h, rt_Heat->fmt);
+		if (rt_Heat->dwWidth != w) // swapping in: resample this frame's heat to display pixels
+		{
+			u32 offset;
+			FVF::TL* quad = (FVF::TL*)RCache.Vertex.Lock(4, g_combine->vb_stride, offset);
+			quad[0].set(0, float(h), EPS_S, 1, 0xffffffff, 0, 1);
+			quad[1].set(0, 0, EPS_S, 1, 0xffffffff, 0, 0);
+			quad[2].set(float(w), float(h), EPS_S, 1, 0xffffffff, 1, 1);
+			quad[3].set(float(w), 0, EPS_S, 1, 0xffffffff, 1, 0);
+			RCache.Vertex.Unlock(4, g_combine->vb_stride);
+			u_setrt(rt_dlss_lens_heat, nullptr, nullptr, nullptr);
+			RImplementation.rmNormal();
+			RCache.set_CullMode(CULL_NONE);
+			RCache.set_Stencil(FALSE);
+			RCache.set_ColorWriteEnable();
+			RCache.set_Geometry(g_combine);
+			RCache.set_Element(s_dlss_display_copy->E[1]);
+			RCache.set_c("dlss_display_copy_params", float(dlss::RenderWidth()) / float(w),
+				float(dlss::RenderHeight()) / float(h), dlss_post_jitter.x, dlss_post_jitter.y);
+			RCache.Render(D3DPT_TRIANGLELIST, offset, 0, 4, 0, 2);
+		}
+		rt_Heat->swap_storage(*rt_dlss_lens_heat);
+	}
+	if (position || scene || heat)
+		RCache.InvalidateTextures();
+}
+
 // The finished scene, still in display values, to linear HDR at render size.
 ID3DTexture2D* CRenderTarget::dlss_hdr_encode(u32 element)
 {

@@ -899,7 +899,14 @@ void CRenderTarget::phase_combine()
 			phase_dlss_native_depth(dlss_post_jitter.x, dlss_post_jitter.y, true);
 			HW.pContext->ClearDepthStencilView(HW.pBaseZB, D3D_CLEAR_STENCIL, 1.f, 0);
 		}
+		// its position, scene and heat inputs must match the display-size frame (size, and the scene copy's format)
+		const bool lensPosition = postAfterUpscale && rt_Generic_2->dwWidth != rt_Position->dwWidth;
+		const bool lensScene = postAfterUpscale &&
+			(rt_Generic_temp->dwWidth != rt_Generic_0->dwWidth || rt_Generic_temp->fmt != rt_Generic_0->fmt);
+		const bool lensHeat = postAfterUpscale && rt_Heat->dwWidth != rt_Position->dwWidth;
+		dlss_lens_scratch_swap(lensPosition, lensScene, lensHeat);
 		phase_3DSSReticle(false); // PiP reticle/depth overlays and legacy 3DSS
+		dlss_lens_scratch_swap(lensPosition, lensScene, lensHeat);
 		svp_stats::cpu_end(svp_stats::CPU_LENS);
 	}
 

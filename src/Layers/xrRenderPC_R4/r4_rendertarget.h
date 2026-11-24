@@ -474,6 +474,10 @@ public:
 	ref_shader s_dlss_display_copy;
 	ref_rt rt_dlss_scope_color;
 	ref_rt rt_dlss_display_position;
+	// bodycam's late lens pass: display-size stand-ins for rt_Generic_2 / rt_Generic_temp / rt_Heat
+	ref_rt rt_dlss_lens_position;
+	ref_rt rt_dlss_lens_scene;
+	ref_rt rt_dlss_lens_heat;
 	ref_rt rt_dlss_scope_heat;
 	ref_texture t_dlss_scene_depth;
 	bool reported_native_ui = false; // One diagnostic per target lifetime.
@@ -752,6 +756,7 @@ public:
 	void dlss_post_upscale();
 	void dlss_post_swap();
 	void dlss_post_restore();
+	void dlss_lens_scratch_swap(bool position, bool scene, bool heat);
 	void dlss_post_effects(float jitterX, float jitterY);
 	bool DlssSunshaftMaskOverTime() const;
 	void dlss_sunshaft_mask(u32 Offset);

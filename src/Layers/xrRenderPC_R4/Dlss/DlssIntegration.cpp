@@ -89,6 +89,7 @@ bool hdrInput = false;
 unsigned jitterIndex = 0;
 Fvector lastPosition, lastDirection;
 float lastFov = 0;
+float sceneMipBias = 0; // log2(render / display) of the main view, set by BeginScene
 bool haveCamera = false;
 bool reportedEvaluation = false;
 string512 backendError = {};
@@ -450,9 +451,17 @@ void BeginScene()
         lastDirection = Device.vCameraDirection;
         lastFov = Device.fFOV;
         haveCamera = true;
-        SSManager.SetMipLODBias(ps_r__tf_Mipbias + log2f(float(RenderWidth()) / Device.dwWidth));
+        sceneMipBias = log2f(float(RenderWidth()) / Device.dwWidth);
+        SSManager.SetMipLODBias(ps_r__tf_Mipbias + sceneMipBias);
     }
     rasterJitter = Active() ? Jitter(jitterIndex++, renderSize, {Device.dwWidth, Device.dwHeight}) : Offset{};
+}
+
+// BeginScene's bias is for the main view; the SVP pass renders at its own size, so it samples unbiased
+void ApplyMipBias()
+{
+    if (configured && inScene && mainView && BackendReady())
+        SSManager.SetMipLODBias(ps_r__tf_Mipbias + (SvpPass() ? 0.f : sceneMipBias));
 }
 
 void EndScene(bool invalidateHistory)

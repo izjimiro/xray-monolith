@@ -11,6 +11,8 @@ void ReleaseTargets();
 void ShutdownDevice();
 void BeginScene();
 void EndScene(bool invalidateHistory = false);
+// bodycam's SVP pass runs inside the main scene: the texture mip bias follows the active target
+void ApplyMipBias();
 bool Active();
 bool Configured();
 // SSS 24's ssfx_upscaling_setup.x: 0 none, 1 FSR, 2 DLSS (while Active()).
