@@ -1219,7 +1219,12 @@ void player_hud::solve_hand_ik(int arm)
 	for (int i = 0; i < 3; ++i)
 		m_ik_transforms[first + i].second = false;
 
-	if (state.enabled && m_attached_items[0] && (arm == 1 || !m_attached_items[1]))
+	// IK off: the callbacks change nothing, and recalculating the bones here would discard
+	// the pose the bodycam arm controller / Reference host wrote in update()
+	if (!state.enabled)
+		return;
+
+	if (m_attached_items[0] && (arm == 1 || !m_attached_items[1]))
 	{
 		for (int i = 0; i < 4; ++i)
 			if (state.bones[i] == BI_NONE)

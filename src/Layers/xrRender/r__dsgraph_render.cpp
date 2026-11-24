@@ -482,7 +482,8 @@ void CDSGraphManager::r_dsgraph_render_hud(bool _clear)
 	// Rendering
 	RImplementation.rmNear();
 	r_dsgraph_render_graph_sorted(RGraph.mapHUD, _clear);
-	r_dsgraph_render_graph_sorted(RGraph.mapCustomFOV, _clear);
+	// only this pass draws the list (the SVP hud drain and drainKeptGraph never touch it), so it always clears here
+	r_dsgraph_render_graph_sorted(RGraph.mapCustomFOV);
 
 	if (!RGraph.mapCamAttached.empty())
 	{
