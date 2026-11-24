@@ -3144,7 +3144,7 @@ void CWeapon::InterpolateOffset(Fvector& current, const Fvector& target, const f
 }
 
 // Returns whether the main HUD rotation is within the transition completion tolerance.
-bool CWeapon::InterpolateHudRotation(const Fvector& rotation, const Fvector& aim_rotation, float factor)
+bool CWeapon::InterpolateHudRotation(const Fvector& rotation, const Fvector& aim_rotation, float factor, float aim_factor)
 {
 	// Preserve the configured X/Y/Z composition; interpolate orientations, not Euler angles.
 	Fmatrix target_rotation, axis_rotation;
@@ -3157,15 +3157,14 @@ bool CWeapon::InterpolateHudRotation(const Fvector& rotation, const Fvector& aim
 	target_quaternion.set(target_rotation).normalize();
 	target_rotation.setHPB(aim_rotation);
 	target_aim_quaternion.set(target_rotation).normalize();
-	const float rotation_factor = clampr(factor * 2.5f, 0.f, 1.f);
-	auto interpolate_rotation = [&](Fquaternion& current, const Fquaternion& target)
+	auto interpolate_rotation = [](Fquaternion& current, const Fquaternion& target, float step)
 	{
 		Fquaternion blended;
-		blended.slerp(current, target, rotation_factor).normalize();
+		blended.slerp(current, target, clampr(step * 2.5f, 0.f, 1.f)).normalize();
 		current = blended.cmp(target, EPS) ? target : blended;
 	};
-	interpolate_rotation(m_hud_rotation, target_quaternion);
-	interpolate_rotation(m_hud_aim_rotation, target_aim_quaternion);
+	interpolate_rotation(m_hud_rotation, target_quaternion, factor);
+	interpolate_rotation(m_hud_aim_rotation, target_aim_quaternion, aim_factor);
 
 	// Compare orientations so equivalent Euler representations do not delay completion.
 	const float rotation_dot = _abs(m_hud_rotation.x * target_quaternion.x
@@ -3231,7 +3230,8 @@ void CWeapon::UpdateHudAdditional(Fmatrix& trans)
 
 		InterpolateOffset(m_hud_offset[0], curr_offs, offset_factor);
 
-		const bool rotation_reached = InterpolateHudRotation(curr_rot, curr_aim_rot, offset_factor);
+		// the aim rotation keeps the aim transition speed, only the pose follows the sprint lowering (as bodycam had it)
+		const bool rotation_reached = InterpolateHudRotation(curr_rot, curr_aim_rot, offset_factor, factor);
 		if (curr_offs.similar(m_hud_offset[0], .02f) && rotation_reached)
 		{
 			if ((idx == 4 || last_idx == 4) && IsPending()) SetPending(FALSE);

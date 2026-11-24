@@ -774,7 +774,7 @@ protected:
 	virtual void UpdatePosition(const Fmatrix& transform); //.
 	virtual void UpdateXForm();
 	void InterpolateOffset(Fvector& current, const Fvector& target, const float factor) const;
-	bool InterpolateHudRotation(const Fvector& rotation, const Fvector& aim_rotation, float factor);
+	bool InterpolateHudRotation(const Fvector& rotation, const Fvector& aim_rotation, float factor, float aim_factor);
 	virtual void UpdateHudAdditional(Fmatrix& trans);
 	IC void UpdateFireDependencies()
 	{
