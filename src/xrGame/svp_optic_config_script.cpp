@@ -1396,7 +1396,7 @@ luabind::object svp_current_optic_profile()
 	}
 	SParsedConfig parsed = svp_config_view(config);
 	luabind::object result = svp_normalized_table(parsed, false);
-	result["context_token"] = luabind::object(); // the token stays with its owner
+	// context_token stays nil: the token stays with its owner (assigning an empty luabind::object pushes a null state)
 	result["has_owner"] = config.context_token != 0;
 	result["valid"] = true;
 	result["route"] = "typed";
