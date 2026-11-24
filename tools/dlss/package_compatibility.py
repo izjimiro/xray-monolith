@@ -14,9 +14,10 @@ REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / "extras/dlss_fomod"
 LEGACY = REPO / "extras/dlss_gamma/gamedata"
 VERSION = "0.73"
-# The only shader Atmospherics RC8.1 and this patch both replace. SSS and Atmospherics
-# keep their own ssfx_* shaders; the upscaler needs no changes in them.
+# The only shader Atmospherics RC8 / RC8.1 and this patch both replace. RC8 hotfix 4's
+# copy differs from RC8.1's by one comment line, so both choices share it.
 ATMOS_FILES = ("deffer_impl_flat.ps",)
+ATMOS_COMPONENTS = ("atmos_rc8", "atmos_rc81")
 # Glossy Puddles Overhaul v2.6 deffer_impl_flat.ps, one per weather family.
 GLOSSY_PUDDLES = ("glossy_puddles_pbr", "glossy_puddles_sss")
 
@@ -45,7 +46,9 @@ def build(output: Path, version: str = VERSION) -> None:
         if relative == Path("shaders/r3/wd_body.vs"):
             component = "wearable"
         elif relative.parent == Path("shaders/r3") and relative.name in ATMOS_FILES:
-            component = "atmos_rc81"
+            for component in ATMOS_COMPONENTS:
+                copy_file(source, stage / "components" / component / "gamedata" / relative)
+            continue
         else:
             component = "base"
         copy_file(source, stage / "components" / component / "gamedata" / relative)
@@ -57,7 +60,8 @@ def build(output: Path, version: str = VERSION) -> None:
             stage / "components/base/gamedata/shaders/r3" / name,
         )
 
-    for component in ("better_beefs", "better_beefs_atmos_rc81", *GLOSSY_PUDDLES):
+    # atmos_rc81 adds RC8.1's own headers, with its per-frame noise held still under the upscaler.
+    for component in ("atmos_rc81", "better_beefs", "better_beefs_atmos_rc8", "better_beefs_atmos_rc81", *GLOSSY_PUDDLES):
         component_source = SOURCE / component / "gamedata"
         for source in sorted(component_source.rglob("*")):
             if source.is_file():
@@ -74,6 +78,7 @@ def build(output: Path, version: str = VERSION) -> None:
     selections = {
         "atmos_none.txt": "Selected: no Atmospherics.",
         "atmos_26893.txt": "Selected: Atmospherics 2.68.93 Hotfix 3 (stock GAMMA 0.9.5).",
+        "atmos_rc8.txt": "Selected: Atmospherics 2.69 RC8.",
         "atmos_rc81.txt": "Selected: Atmospherics 2.69 RC8.1.",
         "wearable.txt": "Selected: WearableDevices compatibility.",
         "better_beefs.txt": "Selected: Better Beef's NVGs (.19) compatibility.",

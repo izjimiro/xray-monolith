@@ -8,8 +8,8 @@ INSTALL
 3. Install this ZIP through MO2:
    - Page 1: leave the required SSS 23.5 option checked.
    - Page 2: choose your installed Atmospherics version, or None.
-     The RC8.1 choice works with whatever options you picked in the
-     Atmospherics installer.
+     The RC8 and RC8.1 choices work with whatever options you
+     picked in the Atmospherics installer.
    - Page 3: select only the add-ons you have installed.
 4. Enable this patch BELOW SSS, Atmospherics and any other shader mods
    in MO2's left pane.
@@ -41,23 +41,34 @@ Glossy Puddles Overhaul v2.6 (Erandis):
   Requires Glossy Puddles v2.6; with older versions the game fails to
   compile shaders. Update Glossy Puddles first.
   The patch picks the matching version from your Atmospherics choice:
-    Atmospherics RC8.1 -> Glossy Puddles "PBR Shader Based Weathers"
-    anything else      -> Glossy Puddles "SSS Based Weathers"
+    Atmospherics RC8.x                 -> Glossy Puddles "PBR Shader Based Weathers"
+    anything else                      -> Glossy Puddles "SSS Based Weathers"
   Put Glossy Puddles above this compatibility patch in MO2's left pane.
 
 ATMOSPHERICS
 ------------
-Supported: stock GAMMA Atmospherics (2.68.93 Hotfix 3) and 2.69 RC8.1.
-RC7.x and RC8 (any hotfix) are no longer supported; update to RC8.1.
+Supported: stock GAMMA Atmospherics (2.68.93 Hotfix 3), 2.69 RC8 hotfix 4
+and 2.69 RC8.1. RC7.x and earlier RC8 hotfixes are no longer supported.
+
+RC8.1 dithers some lighting data with noise that changes every frame. With
+DLSS / FSR on, the RC8.1 choice holds that noise still, since the upscaler
+shows it as grain:
+  - material data on hands, weapons, foliage and other PBR objects
+  - hand and weapon screen-space shadows, from the sun and from lights
+With the upscaler off, RC8.1 is unchanged.
 
 WHAT'S NEW IN 0.73
 ------------------
-- Atmospherics RC8.1 support. The RC7 and RC8 choices are gone.
+- Atmospherics RC8.1 support. RC8 hotfix 4 stays supported; the RC7 choice
+  is gone.
   - Grass keeps RC8.1's per-blade lighting direction.
   - Flat ground keeps RC8.1's version of its shader.
   - Better Beef's + RC8.1 keeps RC8.1's bloom changes.
   - RC8.1's blood decals use their smoother dither with DLSS / FSR.
-- Glossy Puddles v2.6 (required, v2.5 no longer supported): its afterglow
+  - Less grain on hands, weapons and foliage with DLSS / FSR (see
+    ATMOSPHERICS above).
+- Glossy Puddles v2.6 (required with RC8 and RC8.1; v2.5 no longer
+  supported): its afterglow
   tint now shows on flat ground.
 
 UPDATING OR CHANGING OPTIONS

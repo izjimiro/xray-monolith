@@ -19,13 +19,14 @@ removed overrides remain in git history if the GTAO noise offset is ever
 needed again.
 
 extras/dlss_fomod/sss235 contains SSS 23.5's deffer_impl_flat.ps with motion
-vectors, installed by the mandatory base component. The RC8.1 choice replaces
-it with Atmospherics' version at priority 100. WearableDevices is installed
+vectors, installed by the mandatory base component. The RC8 hotfix 4 and RC8.1
+choices replace it with Atmospherics' version at priority 100; RC8.1 also gets
+two RC8.1 headers (see ATMOSPHERICS). WearableDevices is installed
 only when selected, with priority 200.
 
 The Better Beef's checkbox installs its three shader overrides at priority
-200. When combined with RC8.1, a conditional priority-300 merge replaces only
-combine_2_naa.ps. With the checkbox off, none of these overrides is installed.
+200. When combined with RC8 hotfix 4 or RC8.1, a conditional priority-300 merge
+replaces only combine_2_naa.ps. With the checkbox off, none of these overrides is installed.
 
 The flat extras/dlss_gamma payload is retained for existing release
 workflows; its deffer_impl_flat.ps is the Atmospherics RC8.1 version.
@@ -55,13 +56,43 @@ Atmospherics_GAMMA_2.68.93_hotfix3.7z. It does not supply deffer_impl_flat.ps,
 so its choice retains the SSS base. Its separate sky shader includes
 night_vision.h, which is why the existing header remains in the shared base.
 
-Atmospherics 2.69 RC8.1 is the only 2.69 choice since 0.73; RC7.x and RC8
-(any hotfix) are no longer supported. It works with every sunshaft, AO, fog,
-horizon, IL and SSR option in its installer, since none of them is touched.
+Atmospherics 2.69 RC8 hotfix 4 and RC8.1 are the 2.69 choices since 0.73;
+RC7.x and earlier RC8 hotfixes are no longer supported. Both work with every
+sunshaft, AO, fog, horizon, IL and SSR option in their installers, since none
+of those files is touched.
 
-atmos_rc81 deffer_impl_flat.ps (extras/dlss_gamma):
+atmos_rc8 / atmos_rc81 deffer_impl_flat.ps (extras/dlss_gamma):
   Start with RC8.1's "In common" file, newlines normalized. Add the
-  motion-vector header and assign O.velocity before returning.
+  motion-vector header and assign O.velocity before returning. RC8 hotfix 4's
+  file differs from RC8.1's only by one comment line, so both choices install
+  this one.
+
+RC8.1 dithers several values with noise that changes over time, which only an
+accumulating TAA hides. DLSS and FSR are not denoisers: noise in their inputs
+shows as grain or shimmer, most on the HUD, where SSS rejects most history
+while the weapon sways. The atmos_rc81 component (extras/dlss_fomod/atmos_rc81)
+replaces two RC8.1 headers. Each change applies only while dlss_params.x is
+set (DLSS / FSR active in the main view), so RC8.1 renders as shipped otherwise.
+
+atmos_rc81/atmos_hud_mtl.h:
+  Start with RC8.1's "In common" file. Include dlss_contract.h. Add
+  atmos_code_dither, 0.5 under the upscaler and atmos_code_noise otherwise,
+  and use it for the material codes packed into the albedo's low bits
+  (metalness, translucency, grass AO). The cloth flag uses a 0.5 threshold
+  under the upscaler instead of a noise threshold. The codes are then rounded
+  (30-31 levels, 4 for grass AO) rather than dithered. atmos_code_noise itself
+  is unchanged, so RC8.1's blood decals keep their temporal dither (see below).
+
+atmos_rc81/screenspace_shadows.h:
+  Start with RC8.1's "In common" file. Include dlss_contract.h. Under the
+  upscaler, HUD pixels use the interleaved-gradient ray offset without its
+  time term, and atmos_sss_point_hud (light shadows on the HUD, lit directly
+  with no history) uses a still interleaved gradient instead of per-frame
+  white noise. World pixels keep RC8.1's noise, which SSS accumulates.
+
+RC8.1's own jitter handling needs no change: ssfx_jitter carries the
+upscaler's clip-space jitter in these binaries, and RC8.1 removes it the same
+way it removes SSS's TAA jitter.
 
 RC8.1 adds its own deffer_grass.vs, which the base component's version
 overrides: RC8.1's drops our previous-frame wave (wave_prev / dir2D_prev) and
@@ -152,6 +183,11 @@ better_beefs/combine_2_naa.ps:
   that excludes an active NVG lens from SSS LUT grading. Used with SSS-only
   and stock Atmospherics, which does not supply this combine shader.
 
+better_beefs_atmos_rc8/combine_2_naa.ps:
+  Unchanged from 0.72 (restored from git): RC8 hotfix 4's "In common" file with
+  the same Better Beef's LUT-mask condition. Only installed when BOTH RC8
+  hotfix 4 and Better Beef's are selected.
+
 better_beefs_atmos_rc81/combine_2_naa.ps:
   Start with Atmospherics RC8.1's "In common" file, newlines normalized.
   Add the same Better Beef's LUT-mask condition around ssfx_lut_pp, keeping
@@ -189,16 +225,22 @@ updating this provenance and the stated compatibility versions deliberately.
 
 STATUS
 ------
-0.73: Atmospherics RC8.1 replaces the RC7 and RC8 choices, and Glossy
-Puddles moves to v2.6. Checked with fxc ps_5_0 / vs_5_0, no defines, every
-.ps/.vs over the SSS 23.5 base, with and without the patch. The patch adds no
-failure on RC8.1 with either feature set (Atmos: volumetric sunshafts, GTAO
-High, Atmos fog, geometric horizon, Atmos IL and SSR; SSS: screen-space
-sunshafts and SSS AO, fog, heuristic horizon, IL, SSR), with Better Beef's
-on RC8.1, with Glossy Puddles v2.6 PBR on RC8.1 (both feature sets, Atmos SSR
-on the Atmos set), or with Glossy Puddles v2.6 SSS on SSS 23.5 alone. The
-failures common to both sides are variants needing engine defines (skinning,
-MSAA, shadow and SSAO options). Not installed through MO2 or played.
+0.73: Atmospherics RC8.1 is added and the RC7 choice removed; RC8 stays as
+RC8 hotfix 4. Glossy Puddles moves to v2.6. The RC8.1 choice also holds RC8.1's
+per-frame material and HUD shadow noise still under DLSS / FSR. Checked with
+fxc ps_5_0 / vs_5_0, no defines, every .ps/.vs over the SSS 23.5 base, with
+and without the patch. The patch adds no failure on RC8.1 or RC8 hotfix 4 with
+either feature set (Atmos: volumetric sunshafts, GTAO High, Atmos fog,
+geometric horizon, Atmos IL and SSR; SSS: screen-space sunshafts and SSS AO,
+fog, heuristic horizon, IL, SSR), with Better Beef's on each, with Glossy
+Puddles v2.6 PBR on each (Atmos set, with its Atmos SSR files), with Glossy
+Puddles v2.6 SSS or Better Beef's on SSS 23.5 alone. The failures common to
+both sides are variants needing engine defines (skinning, MSAA, shadow and
+SSAO options); ui_icons.vs, new to the patch, compiles with the skinning
+defines. The users of RC8.1's screenspace_shadows.h (accum_base, accum_omni_
+unshadowed, accum_sun_near/far, ssfx_sss, ssfx_sss_ext) compile with the
+engine's SSFX_SSS_DIR_QUALITY / SSFX_SSS_OMNI_QUALITY defines, with and
+without the patch. Not installed through MO2 or played.
 
 0.721: compatibility patch only, for the same 0.72 binaries. Glossy Puddles
 moves to v2.5 and Better Beef's + RC8 to RC8 hotfix 4 (with an RC8 fallback).
