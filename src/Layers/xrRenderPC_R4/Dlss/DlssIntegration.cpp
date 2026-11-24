@@ -395,17 +395,18 @@ void SupportSummary(char* text, unsigned size)
     xr_sprintf(text, size, "dlss=%u fsr3=%u fsr_dx12=%s fg_dlss=%s fg_fsr=%s",
         unsigned(UpscalerSupported(1)), unsigned(UpscalerSupported(2)), fsrUpscaler, dlssGeneration, fsrGeneration);
 }
-// bodycam true PiP renders the scope through its own SVP target and buffers: there the upscaler does not exist
+// bodycam true PiP renders the scope through its own SVP target and buffers: there the upscaler does not exist.
+// The SVP pass runs inside the main frame (between BeginScene and EndScene), so every state query checks it.
 static bool SvpPass() { return Device.true_pip_on && Device.m_SecondViewport.m_render_pass_is_svp; }
 unsigned RenderWidth() { return renderSize.Valid() && !SvpPass() ? renderSize.width : Device.dwWidth; }
 unsigned RenderHeight() { return renderSize.Valid() && !SvpPass() ? renderSize.height : Device.dwHeight; }
 bool Configured() { return configured && !SvpPass(); }
 bool HdrInput() { return Configured() && hdrInput; }
-bool Active() { return configured && inScene && mainView && BackendReady(); }
+bool Active() { return Configured() && inScene && mainView && BackendReady(); }
 unsigned UpscalerKind() { return Active() ? (UsesFsr() ? 1u : 2u) : 0u; }
-Offset RasterJitter() { return rasterJitter; }
-Offset PreviousRasterJitter() { return previousJitter; }
-ID3DDepthStencilView* SceneDepth() { return inScene && configured ? sceneDepthView.Get() : HW.pBaseZB; }
+Offset RasterJitter() { return SvpPass() ? Offset{} : rasterJitter; }
+Offset PreviousRasterJitter() { return SvpPass() ? Offset{} : previousJitter; }
+ID3DDepthStencilView* SceneDepth() { return inScene && Configured() ? sceneDepthView.Get() : HW.pBaseZB; }
 ID3D11Texture2D* SceneDepthTexture() { return sceneDepth.Get(); }
 ID3D11Texture2D* Output()
 {
