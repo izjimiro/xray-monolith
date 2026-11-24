@@ -68,8 +68,8 @@ WHAT'S NEW IN 0.73
   - Less grain on hands, weapons and foliage with DLSS / FSR (see
     ATMOSPHERICS above).
 - Glossy Puddles v2.6 (required with RC8 and RC8.1; v2.5 no longer
-  supported): its afterglow
-  tint now shows on flat ground.
+  supported): its afterglow tint now shows on flat ground.
+- WearableDevices v0.10.1.
 
 UPDATING OR CHANGING OPTIONS
 ---------------------------

@@ -146,7 +146,9 @@ The shader_bus Lua API it uses is in these binaries (upstream 2026-10-11).
 
 WEARABLEDEVICES
 ---------------
-The third page installs the existing wd_body.vs byte-for-byte when selected.
+The third page installs wd_body.vs when selected. It is WearableDevices v0.10.1's
+file plus the scene jitter while DLSS/FSR is active, inside v0.10.1's
+SSFX_MV_LOADED guard (defined in GAMMA through common.h -> gbuffer_stage.h).
 No glow/bloom workaround, device draw-order change or engine rollback is
 included. The original mod itself is not bundled.
 
