@@ -102,7 +102,8 @@ struct PrevWorldXform
 };
 static xr_unordered_map<const Fmatrix*, PrevWorldXform> g_prev_world_xforms;
 
-static void set_dynamic_world_prev(const Fmatrix* M)
+// drawn = the matrix actually rendered: for HUD under the PiP pose latch it differs from *M (MT updates *M mid-frame)
+static void set_dynamic_world_prev(const Fmatrix* M, const Fmatrix& drawn)
 {
 	if (!RImplementation.o.ssfx_motionvectors)
 		return;
@@ -111,16 +112,16 @@ static void set_dynamic_world_prev(const Fmatrix* M)
 	PrevWorldXform& X = g_prev_world_xforms[M];
 	if (g_prev_world_xforms.size() != count)
 	{
-		X.prev = *M;
+		X.prev = drawn;
 		X.frame = Device.dwFrame;
 	}
 	else if (X.frame != Device.dwFrame)
 	{
 		// Not drawn last frame: no usable history, so assume no object motion
-		X.prev = (X.frame + 1 == Device.dwFrame) ? X.last : *M;
+		X.prev = (X.frame + 1 == Device.dwFrame) ? X.last : drawn;
 		X.frame = Device.dwFrame;
 	}
-	X.last = *M;
+	X.last = drawn;
 
 	RCache.set_xform_world_prev(X.prev);
 }
@@ -384,9 +385,10 @@ void CDSGraphManager::r_dsgraph_render_graph_sorted(R_dsgraph::mapDSGraphItems<T
         reference_particle_bind();
 		CCustomFOVInitializer projection(item.fov);
 		// hud matrices resolve through the pose latch, everything else passes through untouched
-		RCache.set_xform_world(*svp_pose_of(item.pMatrix));
+		const Fmatrix& world = *svp_pose_of(item.pMatrix);
+		RCache.set_xform_world(world);
 #ifdef USE_DX11
-		set_dynamic_world_prev(item.pMatrix);
+		set_dynamic_world_prev(item.pMatrix, world);
 #endif
 		RImplementation.apply_object(item.pObject);
 		RImplementation.apply_lmaterial();
@@ -531,7 +533,7 @@ void CDSGraphManager::r_dsgraph_render_graph(RenderQueueArray& queues, u32 _prio
 			{
 				RCache.set_xform_world(*item.pMatrix);
 #ifdef USE_DX11
-				set_dynamic_world_prev(item.pMatrix);
+				set_dynamic_world_prev(item.pMatrix, *item.pMatrix);
 #endif
 				RImplementation.apply_object(item.pObject);
 				RImplementation.apply_lmaterial();
