@@ -67,12 +67,9 @@ void CDSGraphManager::r_dsgraph_insert_dynamic(dxRender_Visual *pVisual, Fmatrix
 {
 	Fvector Center;
 	xform->transform_tiny(Center, pVisual->vis.sphere.P);
-    // Attachments can submit the same visual at several instance transforms in one pass.
+    // Script attachments submit a temporary transform, keep a copy for the render.
     if (!get_UI3D() && val_pObject && !val_pObject->dcast_CObject())
-    {
-        owned_transforms.push_back(*xform);
-        xform = &owned_transforms.back();
-    }
+        xform = store_instance_transform(pVisual, *xform);
     if (get_UI3D())
     {
         VERIFY(pVisual->shader._get());
@@ -461,10 +458,23 @@ void CDSGraphManager::r_dsgraph_insert_dynamic(dxRender_Visual *pVisual, Fmatrix
 	}
 #endif
 
+#ifdef USE_DX11
+	// Smoke and other particles change on their own but carry the motion of the
+	// scene behind them; the upscaler accumulated them into grids. With the post
+	// chain after reconstruction, draw them at display resolution with it.
+	// Opaque particles (priority 0) stay in the G-buffer.
+	if (ps_r_upscaler_particles_after && shader_priority == 1 && this == &RImplementation.GMBase &&
+		pVisual->dcast_ParticleCustom() && RImplementation.Target->DlssPostAfterUpscale())
+	{
+		RGraph.mapDlssEffects.emplace_back(distSQ, SSA, val_pObject, pVisual, xform, sh, false);
+		return;
+	}
+#endif
+
 	for (u32 iPass = 0; iPass < sh->passes.size(); ++iPass)
 	{
 		// the most common node
-		
+
 		if (sh->passes[iPass] == nullptr)
 		{
 			continue;

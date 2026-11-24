@@ -1,5 +1,9 @@
 #include "stdafx.h"
 #include "scope_vslr_renderer.h"
+#ifdef XR_DX12_BRIDGE
+#include "Dlss/FrameGeneration.h"
+#include "../xrRenderDX10/D3D12PresentBridge.h"
+#endif
 #include "../../xrEngine/igame_persistent.h"
 #include "../../xrEngine/environment.h"
 
@@ -81,9 +85,16 @@ void CRenderTarget::DoAsyncScreenshot()
 
 		//HW.pDevice->CopyResource( t_ss_async, pTex );
 		ID3DTexture2D* pBuffer;
+#ifdef XR_DX12_BRIDGE
+        R_CHK(HW.GetPresentationSurface(&pBuffer));
+#else
 		hr = HW.m_pSwapChain->GetBuffer(0, __uuidof( ID3D10Texture2D), (LPVOID*)&pBuffer);
+#endif
 		// TODO: this won't work in DX11 with HDR due to texture format incompat
 		HW.pContext->CopyResource(t_ss_async, pBuffer);
+#ifdef XR_DX12_BRIDGE
+        pBuffer->Release();
+#endif
 
 
 		RImplementation.m_bMakeAsyncSS = false;
@@ -91,6 +102,119 @@ void CRenderTarget::DoAsyncScreenshot()
 }
 
 float hclip(float v, float dim) { return 2.f * v / dim - 1.f; }
+
+#ifdef XR_DX12_BRIDGE
+extern int ps_r_fg_hudless_test;
+extern int ps_r_fg_laser_fill;
+extern int ps_r_fg_laser_fill_view;
+
+// r_fg_laser_fill: laser beams and reflex sight reticles go into the HUD-less
+// image filled from the pixels around them. Frame generation interpolates that
+// image; where it differs from the presented frame it takes the frame, so the
+// beams and dots are shown where they are rather than moved along the scene.
+bool CRenderTarget::FgMaskWanted()
+{
+	if (!ps_r_fg_laser_fill || ps_r_fg_hudless_test || fg_laser_fill_state < 0) return false;
+	auto* bridge = HW.PresentationBridge();
+	return bridge && (ps_r_fg_laser_fill_view || bridge->NeedsFGInputs());
+}
+
+bool CRenderTarget::fg_mask_begin()
+{
+	if (!FgMaskWanted() || !fg_laser_fill_create()) return false;
+	u_setrt(rt_fg_mask, nullptr, nullptr, HW.pBaseZB);
+	if (fg_mask_frame != Device.dwFrame)
+	{
+		const float black[4] = {0, 0, 0, 0};
+		HW.pContext->ClearRenderTargetView(rt_fg_mask->pRT, black);
+		fg_mask_frame = Device.dwFrame;
+	}
+	RImplementation.rmNormal();
+	RCache.set_CullMode(CULL_CCW);
+	RCache.set_Stencil(FALSE);
+	RCache.set_ColorWriteEnable();
+	return true;
+}
+
+// The HUD-less image for frame generation, or null for the presentation surface
+// itself. r_fg_hudless_test: a centred square, of that percentage of the screen
+// height from centre to edge, filled from its border; a developer test.
+// r_fg_laser_fill: the pixels in this frame's mask.
+ID3DTexture2D* CRenderTarget::fg_hudless_image()
+{
+	auto* bridge = HW.PresentationBridge();
+	if (!bridge) return nullptr;
+	const bool test = ps_r_fg_hudless_test != 0;
+	const bool fill = !test && ps_r_fg_laser_fill && fg_mask_frame == Device.dwFrame;
+	const bool view = fill && ps_r_fg_laser_fill_view;
+	if (!test && !fill) return nullptr;
+	if (!view && !bridge->NeedsFGInputs()) return nullptr;
+	if (test ? !fg_hudless_test_create() : !fg_laser_fill_create()) return nullptr;
+
+	ID3DTexture2D* frame = nullptr;
+	if (FAILED(HW.GetPresentationSurface(&frame)) || !frame) return nullptr;
+	D3D11_TEXTURE2D_DESC desc{};
+	frame->GetDesc(&desc);
+	const D3DFORMAT format = desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM ? D3DFMT_A8R8G8B8 :
+		desc.Format == DXGI_FORMAT_R10G10B10A2_UNORM ? D3DFMT_A2R10G10B10 : D3DFMT_UNKNOWN;
+	if (format == D3DFMT_UNKNOWN || desc.Width != Device.dwWidth || desc.Height != Device.dwHeight ||
+		!fg_hudless_create(format))
+	{
+		if (reported_fg_hudless_test != -1)
+			Msg("! [FG] HUD-less image not filled, presentation surface not supported: format %u, %ux%u",
+				unsigned(desc.Format), desc.Width, desc.Height);
+		reported_fg_hudless_test = -1;
+		frame->Release();
+		return nullptr;
+	}
+	HW.pContext->CopyResource(rt_fg_hudless[0]->pSurface, frame);
+
+	const int w = int(Device.dwWidth), h = int(Device.dwHeight);
+	u32 offset;
+	FVF::TL* quad = (FVF::TL*)RCache.Vertex.Lock(4, g_combine->vb_stride, offset);
+	quad[0].set(0, float(h), EPS_S, 1, 0xffffffff, 0, 1);
+	quad[1].set(0, 0, EPS_S, 1, 0xffffffff, 0, 0);
+	quad[2].set(float(w), float(h), EPS_S, 1, 0xffffffff, 1, 1);
+	quad[3].set(float(w), 0, EPS_S, 1, 0xffffffff, 1, 0);
+	RCache.Vertex.Unlock(4, g_combine->vb_stride);
+	u_setrt(rt_fg_hudless[1], nullptr, nullptr, nullptr);
+	RCache.set_CullMode(CULL_NONE);
+	RCache.set_Stencil(FALSE);
+	RCache.set_ColorWriteEnable();
+	RCache.set_Geometry(g_combine);
+	const int half = std::max(1, h * ps_r_fg_hudless_test / 100);
+	if (test)
+	{
+		RCache.set_Element(s_fg_hudless_test->E[0]);
+		RCache.set_c("dlss_fg_hudless_rect", float(w / 2 - half), float(h / 2 - half),
+			float(w / 2 + half - 1), float(h / 2 + half - 1));
+	}
+	else
+		RCache.set_Element(s_fg_laser_fill->E[0]);
+	RCache.Render(D3DPT_TRIANGLELIST, offset, 0, 4, 0, 2);
+	// r_fg_laser_fill_view: present what frame generation is given.
+	if (view)
+		HW.pContext->CopyResource(frame, rt_fg_hudless[1]->pSurface);
+	frame->Release();
+	// Back to the presentation surface for the 2D HUD, as phase_pp left it.
+	u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT, NULL, NULL, HW.pBaseZB);
+
+	if (test && reported_fg_hudless_test != ps_r_fg_hudless_test)
+	{
+		Msg("[FG test] HUD-less square filled: %dx%d px at the centre of %dx%d; %s",
+			2 * half, 2 * half, w, h, fg::RuntimeVersions());
+		reported_fg_hudless_test = ps_r_fg_hudless_test;
+	}
+	const int mode = view ? 2 : 1;
+	if (fill && reported_fg_laser_fill != mode)
+	{
+		Msg("[FG] Laser beams and reflex reticles filled in the HUD-less image%s: %dx%d; %s",
+			view ? ", presented (r_fg_laser_fill_view)" : "", w, h, fg::RuntimeVersions());
+		reported_fg_laser_fill = mode;
+	}
+	return rt_fg_hudless[1]->pSurface;
+}
+#endif
 
 void CRenderTarget::phase_combine()
 {
@@ -186,13 +310,17 @@ void CRenderTarget::phase_combine()
 		}
 	}
 
+	// With HDR upscaler input, the scene is combined into floating-point storage
+	if (DlssPostAfterUpscale())
+		dlss_hdr_begin();
+
 	FLOAT ColorRGBA[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 	// low/hi RTs
 	if (!RImplementation.o.dx10_msaa)
 	{
 		HW.pContext->ClearRenderTargetView(rt_Generic_0->pRT, ColorRGBA);
 		HW.pContext->ClearRenderTargetView(rt_Generic_1->pRT, ColorRGBA);
-		u_setrt(rt_Generic_0, rt_Generic_1, rt_Heat, HW.pBaseZB);	//--DSR-- HeatVision
+		u_setrt(rt_Generic_0, rt_Generic_1, rt_Heat, dlss::SceneDepth());	//--DSR-- HeatVision
 	}
 	else
 	{
@@ -335,8 +463,8 @@ void CRenderTarget::phase_combine()
 		*/
 
 		// Fill VB
-		float scale_X = float(Device.dwWidth) / float(TEX_jitter);
-		float scale_Y = float(Device.dwHeight) / float(TEX_jitter);
+		float scale_X = float(RenderScreenWidth()) / float(TEX_jitter);
+		float scale_Y = float(RenderScreenHeight()) / float(TEX_jitter);
 
 		// Fill vertex buffer
 		FVF::TL* pv = (FVF::TL*)RCache.Vertex.Lock(4, g_combine->vb_stride, Offset);
@@ -486,8 +614,8 @@ void CRenderTarget::phase_combine()
 		else
 			u_setrt(rt_ssfx_temp, 0, 0, 0);
 
-		float w = float(Device.dwWidth);
-		float h = float(Device.dwHeight);
+		float w = float(RenderScreenWidth());
+		float h = float(RenderScreenHeight());
 
 		// Render Scale
 		set_viewport_size(HW.pContext, w / ps_ssfx_water.x, h / ps_ssfx_water.x);
@@ -512,7 +640,7 @@ void CRenderTarget::phase_combine()
 	}
 
 	if (!RImplementation.o.dx10_msaa)
-		u_setrt(rt_Generic_0, 0, 0, HW.pBaseZB);
+		u_setrt(rt_Generic_0, 0, 0, dlss::SceneDepth());
 	else
 		u_setrt(rt_Generic_0_r, 0, 0, rt_MSAADepth->pZRT);
 
@@ -535,7 +663,7 @@ void CRenderTarget::phase_combine()
 			phase_ssfx_rain(); // Render a small color buffer to do the refraction and more
 
 			if (!RImplementation.o.dx10_msaa)
-				u_setrt(rt_Generic_0, 0, rt_ssfx_motion_vectors, HW.pBaseZB);
+				u_setrt(rt_Generic_0, 0, rt_ssfx_motion_vectors, dlss::SceneDepth());
 			else
 				u_setrt(rt_Generic_0_r, 0, rt_ssfx_motion_vectors, rt_MSAADepth->pZRT);
 		}
@@ -574,7 +702,7 @@ void CRenderTarget::phase_combine()
 
 		//--DSR-- HeatVision_start
 		if (!RImplementation.o.dx10_msaa)
-			u_setrt(rt_Generic_0, rt_Heat, rt_ssfx_motion_vectors, HW.pBaseZB); // LDR RT
+			u_setrt(rt_Generic_0, rt_Heat, rt_ssfx_motion_vectors, dlss::SceneDepth()); // LDR RT
 		else
 			u_setrt(rt_Generic_0_r, rt_Heat, rt_ssfx_motion_vectors, RImplementation.Target->rt_MSAADepth->pZRT); // LDR RT
 		//--DSR-- HeatVision_end
@@ -604,20 +732,17 @@ void CRenderTarget::phase_combine()
 
 	//	Igor: for volumetric lights
 	//	combine light volume here
-	// pip r__svp_skip_volumetric drops god rays on the scope pass (subtle at magnification)
-	if (!(svp_pass && ps_r__svp_skip_volumetric))
-	{
-		if (RImplementation.o.ssfx_volumetric)
-		{
-			if (m_bHasActiveVolumetric || m_bHasActiveVolumetric_spot)
-				phase_combine_volumetric();
-		}
-		else
-		{
-			if (m_bHasActiveVolumetric)
-				phase_combine_volumetric();
-		}
-	}
+	const bool volumetric = (RImplementation.o.ssfx_volumetric ?
+		m_bHasActiveVolumetric || m_bHasActiveVolumetric_spot : m_bHasActiveVolumetric)
+		&& !(svp_pass && ps_r__svp_skip_volumetric); // pip r__svp_skip_volumetric drops god rays on the scope pass
+	// With the post chain after reconstruction, the volumetric lights are added after it too,
+	// unless sunshafts are set to go through the upscaler.
+	const bool postAfterUpscale = DlssPostAfterUpscale();
+	const bool sunshaftsBeforeUpscale = postAfterUpscale && ps_r_upscaler_sunshafts == UPSCALER_SUNSHAFTS_UPSCALED;
+	const bool screenSpaceSunshafts = !_menu_pp &&
+		(ps_sunshafts_mode == R2SS_SCREEN_SPACE || ps_sunshafts_mode == R2SS_COMBINE_SUNSHAFTS);
+	if (volumetric && (!postAfterUpscale || sunshaftsBeforeUpscale))
+		phase_combine_volumetric();
 
 	// Perform blooming filter and distortion if needed
 	RCache.set_Stencil(FALSE);
@@ -655,7 +780,7 @@ void CRenderTarget::phase_combine()
 			FLOAT ColorRGBA[4] = {127.0f / 255.0f, 127.0f / 255.0f, 0.0f, 127.0f / 255.0f};
 			if (!RImplementation.o.dx10_msaa)
 			{
-				u_setrt(rt_Generic_1, 0, 0, HW.pBaseZB); // Now RT is a distortion mask
+				u_setrt(rt_Generic_1, 0, 0, dlss::SceneDepth()); // Now RT is a distortion mask
 				HW.pContext->ClearRenderTargetView(rt_Generic_1->pRT, ColorRGBA);
 			}
 			else
@@ -693,18 +818,34 @@ void CRenderTarget::phase_combine()
 	   */
 	RCache.set_Stencil(FALSE);
 
-
-
-
-	if (!_menu_pp)
+	// With an upscaler, reconstruct here: the rest of the post chain runs at display resolution.
+	if (postAfterUpscale)
 	{
-		if (ps_sunshafts_mode == R2SS_SCREEN_SPACE || ps_sunshafts_mode == R2SS_COMBINE_SUNSHAFTS)
+		// Only scene passes read the previous positions: keep them render-sized.
+		if (ssfx_PrevPos_Requiered)
+			HW.pContext->CopyResource(rt_ssfx_prevPos->pTexture->surface_get(), rt_Position->pTexture->surface_get());
+		// First in the post chain, so they can stay in the scene while the rest moves.
+		if (sunshaftsBeforeUpscale && screenSpaceSunshafts)
 		{
 			PIX_EVENT(phase_sunshafts);
 			tm_beg(svp_stats::SEC_C_SUNSHAFT);
 			phase_sunshafts();
 			tm_end(svp_stats::SEC_C_SUNSHAFT);
 		}
+		dlss_post_upscale();
+		dlss_post_effects(dlss_post_jitter.x, dlss_post_jitter.y);
+		// Beams and the volumetric sun change on their own but carry the motion
+		// of the scene behind them; in the upscaler's history they became grids.
+		// A distortion mask now fills rt_Generic_1; it used to overwrite their
+		// bloom overflow there, so skip that output.
+		if (volumetric && !sunshaftsBeforeUpscale)
+			phase_combine_volumetric(!bDistort);
+	}
+
+	if (screenSpaceSunshafts && !sunshaftsBeforeUpscale)
+	{
+		PIX_EVENT(phase_sunshafts);
+		phase_sunshafts();
 	}
 
 	if (RImplementation.o.ssfx_fog && ps_ssfx_fog_scattering > 0)
@@ -742,7 +883,7 @@ void CRenderTarget::phase_combine()
 	// pip composite the lens once on the MAIN view only, whenever a 3DSS scope is aimed under true_pip
 	// (magnified or a 1x reflex/eyepiece was captured), true_pip off keeps the stock scope_3D_fake_enabled gate
 	if (this == RImplementation.TargetMain
-		&& (scope_3D_fake_enabled
+		&& ((scope_3D_fake_enabled && !ScopeAfterUpscale()) // with an upscaler, legacy lenses go after reconstruction (phase_dlss_scope)
 			|| (Device.true_pip_on
 				&& (Device.m_SecondViewport.IsSVPActive()
 					|| !RImplementation.GMBase.RGraph.mapReflexHUDSorted.empty()
@@ -817,7 +958,7 @@ void CRenderTarget::phase_combine()
 	}
 
 	// pip the eye side overlays apply once on the main pass
-	if(ps_r2_mask_control.x > 0 && !svp_pass_now)
+	if(ps_r2_mask_control.x > 0 && !svp_pass_now && !dlss::Configured())
 	{
 		phase_gasmask_dudv();
 		if (ps_r2_drops_control.x > 0)
@@ -826,7 +967,7 @@ void CRenderTarget::phase_combine()
 		}
 	}
 
-	if (ps_r2_nightvision > 0 && !svp_pass_now)
+	if (ps_r2_nightvision > 0 && !svp_pass_now && !dlss::Configured())
 	{
 		reticle_glow_compose_before_nightvision(); // 3DSS reticle light through the night vision tube
 		if (!svp_nvg_pass())
@@ -834,19 +975,19 @@ void CRenderTarget::phase_combine()
 	}
 
 	//--DSR-- HeatVision_start
-	if (ps_r2_heatvision > 0 && !svp_pass_now)
+	if (ps_r2_heatvision > 0 && !svp_pass_now && !dlss::Configured())
 		phase_heatvision();
 	//--DSR-- HeatVision_end
 
 	// pip the physical scope renders the sight when the true-PiP SVP is live, the 2D shader-scope
 	// overlay (crookr fakescope) would paint its own floating reticle over the rigid image
-	if (scope_fake_enabled && !(Device.true_pip_on && Device.m_SecondViewport.IsSVPActive()))
+	if (scope_fake_enabled && !(Device.true_pip_on && Device.m_SecondViewport.IsSVPActive()) && !dlss::Configured())
 	{
 		phase_fakescope(); //crookr
 	}
 
     //SMAA
-	if (ps_smaa_quality && !svp_dlss_skip_aa) // pip skip on the DLSS SVP pass (eval reconstructs)
+	if (ps_smaa_quality && !svp_dlss_skip_aa && !postAfterUpscale && !dlss::Active()) // pip skip on the DLSS SVP pass (eval reconstructs)
 	{
         //PIX_EVENT(SMAA);
         phase_smaa();
@@ -855,7 +996,7 @@ void CRenderTarget::phase_combine()
 	
 	// main + off path TAA at the stock position (the true-PiP SVP ran its TAA early, above)
 	if (RImplementation.o.ssfx_taa && ps_ssfx_taa.x > 0 &&
-		!(Device.true_pip_on && Device.m_SecondViewport.m_render_pass_is_svp))
+		!(Device.true_pip_on && Device.m_SecondViewport.m_render_pass_is_svp) && !dlss::Configured())
 	{
 		tm_beg(svp_stats::SEC_C_TAA);
 		phase_ssfx_taa();
@@ -873,7 +1014,7 @@ void CRenderTarget::phase_combine()
 		RImplementation.GMBase.RGraph.mapScopeHUDOverlay.clear();
 	}
 
-	if (ssfx_PrevPos_Requiered)
+	if (ssfx_PrevPos_Requiered && !postAfterUpscale)
 	{
 		svp_copy_begin(SVP_CP_HIST, rt_copy_bytes(rt_ssfx_prevPos));
 		HW.pContext->CopyResource(rt_ssfx_prevPos->pTexture->surface_get(), rt_Position->pTexture->surface_get());
@@ -891,13 +1032,13 @@ void CRenderTarget::phase_combine()
 	// Combine everything + perform AA
 	if (RImplementation.o.dx10_msaa)
 	{
-		if (PP_Complex) u_setrt(rt_Generic, 0, 0, HW.pBaseZB); // LDR RT
-		else u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT,NULL,NULL, HW.pBaseZB);
+		if (PP_Complex) u_setrt(rt_Generic, 0, 0, dlss::SceneDepth()); // LDR RT
+		else u_setrt(RenderScreenWidth(), RenderScreenHeight(), HW.pBaseRT,NULL,NULL, dlss::SceneDepth());
 	}
 	else
 	{
-		if (PP_Complex) u_setrt(rt_Color, 0, 0, HW.pBaseZB); // LDR RT
-		else u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT,NULL,NULL, HW.pBaseZB);
+		if (PP_Complex) u_setrt(rt_Color, 0, 0, dlss::SceneDepth()); // LDR RT
+		else u_setrt(RenderScreenWidth(), RenderScreenHeight(), HW.pBaseRT,NULL,NULL, dlss::SceneDepth());
 	}
 	//. u_setrt				( Device.dwWidth,Device.dwHeight,HW.pBaseRT,NULL,NULL,HW.pBaseZB);
 	RCache.set_CullMode(CULL_NONE);
@@ -921,8 +1062,8 @@ void CRenderTarget::phase_combine()
 			Fvector4 uv6;
 		};
 
-		float _w = float(Device.dwWidth);
-		float _h = float(Device.dwHeight);
+		float _w = float(RenderScreenWidth());
+		float _h = float(RenderScreenHeight());
 		float ddw = 1.f / _w;
 		float ddh = 1.f / _h;
 		p0.set(.5f / _w, .5f / _h);
@@ -1029,7 +1170,8 @@ void CRenderTarget::phase_combine()
 
 	//	if FP16-BLEND !not! supported - draw flares here, overwise they are already in the bloom target
 	/* if (!RImplementation.o.fp16_blend)*/
-	if (ps_r2_anomaly_flags.test(R2_AN_FLAG_FLARES) && ps_r2_heatvision == 0) //--DSR-- HeatVision
+	// With an upscaler, flares are drawn after reconstruction (phase_dlss_postprocess)
+	if (ps_r2_anomaly_flags.test(R2_AN_FLAG_FLARES) && ps_r2_heatvision == 0 && !dlss::Configured()) //--DSR-- HeatVision
 		g_pGamePersistent->Environment().RenderFlares(); // lens-flares
 
 	//	PP-if required
@@ -1042,6 +1184,10 @@ void CRenderTarget::phase_combine()
 		tm_end(svp_stats::SEC_C_COMBINE2);
 	}
 
+#ifdef XR_DX12_BRIDGE
+    // Display-sized postprocessed scene, before the ordinary 2D HUD is drawn.
+    fg::CaptureHudless(fg_hudless_image());
+#endif
 	//	Re-adapt luminance
 	RCache.set_Stencil(FALSE);
 
@@ -1091,8 +1237,8 @@ void CRenderTarget::phase_combine()
 	/*
 	if (0)		{
 		u32		C					= color_rgba	(255,255,255,255);
-		float	_w					= float(Device.dwWidth)/3;
-		float	_h					= float(Device.dwHeight)/3;
+		float	_w					= float(RenderScreenWidth())/3;
+		float	_h					= float(RenderScreenHeight())/3;
 
 		// draw light-spheres
 #ifdef DEBUG
@@ -1163,7 +1309,7 @@ void CRenderTarget::phase_wallmarks()
 	RCache.set_RT(NULL, 2);
 	RCache.set_RT(NULL, 1);
 	if (!RImplementation.o.dx10_msaa)
-		u_setrt(rt_Color,NULL,NULL, HW.pBaseZB);
+		u_setrt(rt_Color,NULL,NULL, dlss::SceneDepth());
 	else
 		u_setrt(rt_Color,NULL,NULL, rt_MSAADepth->pZRT);
 	// Stencil	- draw only where stencil >= 0x1
@@ -1172,17 +1318,21 @@ void CRenderTarget::phase_wallmarks()
 	RCache.set_ColorWriteEnable(D3DCOLORWRITEENABLE_RED | D3DCOLORWRITEENABLE_GREEN | D3DCOLORWRITEENABLE_BLUE);
 }
 
-void CRenderTarget::phase_combine_volumetric()
+void CRenderTarget::phase_combine_volumetric(bool high)
 {
 	PIX_EVENT(phase_combine_volumetric);
 	u32 Offset = 0;
+	// With smoothed sunshafts after reconstruction, the combine reads the volumetric
+	// lights over time: already display-sized and unjittered.
+	ID3DBaseTexture* raw = DlssVolumetricOverTime() ?
+		dlss_volumetric_over_time(dlss_post_jitter.x, dlss_post_jitter.y) : nullptr;
 	//Fvector2	p0,p1;
 
 	//	TODO: DX10: Remove half pixel offset here
 
 	//u_setrt(rt_Generic_0,0,0,HW.pBaseZB );			// LDR RT
 	if (!RImplementation.o.dx10_msaa)
-		u_setrt(rt_Generic_0, rt_Generic_1, 0, HW.pBaseZB);
+		u_setrt(rt_Generic_0, high ? rt_Generic_1 : ref_rt(), 0, dlss::SceneDepth());
 	else
 		u_setrt(rt_Generic_0_r, rt_Generic_1_r, 0, RImplementation.Target->rt_MSAADepth->pZRT);
 	//	Sets limits to both render targets
@@ -1202,10 +1352,23 @@ void CRenderTarget::phase_combine_volumetric()
 
 		// Draw
 		RCache.set_Element(s_combine_volumetric->E[0]);
+		if (raw)
+			RCache.set_c("dlss_volumetric_params", 0.f, 0.f, 1.f, 0.f);
+		else if (dlss_post_swapped)
+			RCache.set_c("dlss_volumetric_params", dlss_post_jitter.x / float(dlss::RenderWidth()),
+				dlss_post_jitter.y / float(dlss::RenderHeight()), 1.f, 0.f);
+		else
+			RCache.set_c("dlss_volumetric_params", 0.f, 0.f, 0.f, 0.f);
 		//RCache.set_Geometry			(g_combine_VP		);
 		RCache.set_Geometry(g_combine);
 		RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
         scope_reference_capture_volumetric(Offset);
 	}
 	RCache.set_ColorWriteEnable();
+	if (raw)
+	{
+		rt_Generic_2->pTexture->surface_set(raw);
+		_RELEASE(raw);
+		RCache.InvalidateTextures();
+	}
 }

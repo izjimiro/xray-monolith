@@ -7,6 +7,7 @@
 #pragma warning(pop)
 
 #include "ResourceManager.h"
+#include "RenderDimensions.h"
 #include "blenders\Blender_Recorder.h"
 #include "blenders\Blender.h"
 
@@ -98,6 +99,14 @@ class cl_texgen : public R_constant_setup
 		};
 #endif	//	USE_DX10
 
+#if defined(USE_DX11)
+		if (dlss::Active())
+		{
+			const auto jitter = dlss::RasterJitter();
+			mTexelAdjust._41 += jitter.x / RenderScreenWidth();
+			mTexelAdjust._42 += jitter.y / RenderScreenHeight();
+		}
+#endif
 		mTexgen.mul(mTexelAdjust, RCache.xforms.m_wvp);
 
 		RCache.set_c(C, mTexgen);
@@ -134,6 +143,14 @@ class cl_VPtexgen : public R_constant_setup
 		};
 #endif	//	USE_DX10
 
+#if defined(USE_DX11)
+		if (dlss::Active())
+		{
+			const auto jitter = dlss::RasterJitter();
+			mTexelAdjust._41 += jitter.x / RenderScreenWidth();
+			mTexelAdjust._42 += jitter.y / RenderScreenHeight();
+		}
+#endif
 		mTexgen.mul(mTexelAdjust, RCache.xforms.m_vp);
 
 		RCache.set_c(C, mTexgen);
@@ -658,8 +675,8 @@ static class cl_screen_res : public R_constant_setup
 {
 	virtual void setup(R_constant* C)
 	{
-		RCache.set_c(C, (float)RDEVICE.dwWidth, (float)RDEVICE.dwHeight, 1.0f / (float)RDEVICE.dwWidth,
-		             1.0f / (float)RDEVICE.dwHeight);
+		RCache.set_c(C, (float)RenderScreenWidth(), (float)RenderScreenHeight(), 1.0f / (float)RenderScreenWidth(),
+		             1.0f / (float)RenderScreenHeight());
 	}
 } binder_screen_res;
 
@@ -1133,7 +1150,10 @@ static class ssfx_ao : public R_constant_setup
 {
 	virtual void setup(R_constant* C)
 	{
-		RCache.set_c(C, ps_ssfx_ao);
+		// .x is the AO res divisor; match the [1, 8] clamp phase_ssfx_ao renders with
+		Fvector4 v = ps_ssfx_ao;
+		v.x = clampr(v.x, 1.0f, 8.0f);
+		RCache.set_c(C, v);
 	}
 }    ssfx_ao;
 
@@ -1149,7 +1169,10 @@ static class ssfx_il : public R_constant_setup
 {
 	virtual void setup(R_constant* C)
 	{
-		RCache.set_c(C, ps_ssfx_il);
+		// .x is the IL res divisor; match the [1, 8] clamp phase_ssfx_il renders with
+		Fvector4 v = ps_ssfx_il;
+		v.x = clampr(v.x, 1.0f, 8.0f);
+		RCache.set_c(C, v);
 	}
 }    ssfx_il;
 
@@ -1238,12 +1261,49 @@ static class ssfx_jitter : public R_constant_setup
 			JitterX = TAA_Offset[ Device.dwFrame % 4 ].x / Device.dwWidth;
 			JitterY = TAA_Offset[ Device.dwFrame % 4 ].y / Device.dwHeight;
 		}
+		if (dlss::Configured())
+		{
+			const auto jitter = dlss::ClipJitter(dlss::RasterJitter(), {dlss::RenderWidth(), dlss::RenderHeight()});
+			RCache.set_c(C, jitter.x, jitter.y, 0.0f, 0.0f);
+			return;
+		}
 #endif
 
 		RCache.set_c(C, JitterX * ps_ssfx_taa.y, JitterY * ps_ssfx_taa.y, ps_ssfx_taa.x, ps_ssfx_taa.w);
 
 	}
 }    ssfx_jitter;
+
+#if defined(USE_DX11)
+static class dlss_params : public R_constant_setup
+{
+    void setup(R_constant* C) override
+    {
+        RCache.set_c(C, dlss::Active() ? 1.0f : 0.0f, float(dlss::RenderWidth()), float(dlss::RenderHeight()), 0.0f);
+    }
+} binder_dlss_params;
+// SSS 24's constant, read by Atmospherics RC8.1 to pick temporal dither:
+// upscaler (0 none, 1 FSR, 2 DLSS), render scale.
+static class ssfx_upscaling_setup : public R_constant_setup
+{
+    void setup(R_constant* C) override
+    {
+        const unsigned kind = dlss::UpscalerKind();
+        const float scale = kind ? float(dlss::RenderWidth()) / float(Device.dwWidth) : 1.0f;
+        RCache.set_c(C, float(kind), scale, 0.0f, 0.0f);
+    }
+} binder_ssfx_upscaling_setup;
+static class dlss_temporal_jitter : public R_constant_setup
+{
+    void setup(R_constant* C) override
+    {
+        const auto current = dlss::RasterJitter();
+        const auto previous = dlss::PreviousRasterJitter();
+        const float width = float(dlss::RenderWidth()), height = float(dlss::RenderHeight());
+        RCache.set_c(C, current.x / width, current.y / height, previous.x / width, previous.y / height);
+    }
+} binder_dlss_temporal_jitter;
+#endif
 
 static class ssfx_fTimeDelta : public R_constant_setup
 {
@@ -1612,6 +1672,11 @@ void CBlender_Compile::SetMapping()
 	r_Constant("ssfx_timedelta", &ssfx_fTimeDelta);
 	r_Constant("ssfx_motionblur", &ssfx_motionblur);
 	r_Constant("ssfx_jitter", &ssfx_jitter);
+#if defined(USE_DX11)
+	r_Constant("dlss_params", &binder_dlss_params);
+	r_Constant("dlss_temporal_jitter", &binder_dlss_temporal_jitter);
+	r_Constant("ssfx_upscaling_setup", &binder_ssfx_upscaling_setup);
+#endif
 	r_Constant("ssfx_pom", &ssfx_pom);
 
 	r_Constant("ssfx_terrain_pom", &ssfx_terrain_pom);

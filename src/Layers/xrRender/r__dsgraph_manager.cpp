@@ -72,6 +72,35 @@ void CDSGraphManager::traverse(CSector* start, CFrustum& F, Fvector& vBase, Fmat
 	i_start->traverse(std::move(F),*this);
 }
 
+Fmatrix* CDSGraphManager::store_instance_transform(const dxRender_Visual* visual, const Fmatrix& transform)
+{
+	if (Device.dwFrame - instance_transforms_pruned >= 600)
+	{
+		instance_transforms_pruned = Device.dwFrame;
+		for (auto it = instance_transforms.begin(); it != instance_transforms.end();)
+		{
+			if (Device.dwFrame - it->second.frame > 600)
+				it = instance_transforms.erase(it);
+			else
+				++it;
+		}
+	}
+
+	// One attachment can draw the same visual at several transforms in a pass, so
+	// the owner and visual pick a set of slots and submission order picks the slot.
+	InstanceTransforms& slots = instance_transforms[{val_pObject, visual}];
+	if (slots.frame != Device.dwFrame)
+	{
+		slots.frame = Device.dwFrame;
+		slots.used = 0;
+	}
+	if (slots.used == slots.transforms.size())
+		slots.transforms.emplace_back();
+	Fmatrix* stored = &slots.transforms[slots.used++];
+	*stored = transform;
+	return stored;
+}
+
 void CDSGraphManager::set_Object(IRenderable* O)
 {
 	val_pObject = O;		// nullptr is OK, trust me :)

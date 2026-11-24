@@ -16,6 +16,9 @@
 #include "flod.h"
 
 #include "../../xrEngine/xr_object.h"
+#if RENDER == R_R4
+#include "../xrRenderPC_R4/Dlss/DlssNativeUi.h"
+#endif
 
 #include "../../Include/xrRender/ParticleCustom.h"
 
@@ -86,6 +89,59 @@ ICF float calcLOD(float ssa/*fDistSq*/, float R)
 	return _sqrt(clampr((ssa - r_ssaGLOD_end) / (r_ssaGLOD_start - r_ssaGLOD_end), 0.f, 1.f));
 }
 
+#ifdef USE_DX11
+// Previous-frame world matrix for dynamic visuals, keyed by the object's xform pointer.
+// Only the sky set m_w_prev before, so rigid dynamic meshes (props, items, doors)
+// built m_wvp_prev with an identity world and wrote garbage motion vectors.
+// Skinned meshes still override m_wvp_prev themselves in CSkeletonX::_Render.
+struct PrevWorldXform
+{
+	Fmatrix prev;
+	Fmatrix last;
+	u32 frame;
+};
+static xr_unordered_map<const Fmatrix*, PrevWorldXform> g_prev_world_xforms;
+
+static void set_dynamic_world_prev(const Fmatrix* M)
+{
+	if (!RImplementation.o.ssfx_motionvectors)
+		return;
+
+	const size_t count = g_prev_world_xforms.size();
+	PrevWorldXform& X = g_prev_world_xforms[M];
+	if (g_prev_world_xforms.size() != count)
+	{
+		X.prev = *M;
+		X.frame = Device.dwFrame;
+	}
+	else if (X.frame != Device.dwFrame)
+	{
+		// Not drawn last frame: no usable history, so assume no object motion
+		X.prev = (X.frame + 1 == Device.dwFrame) ? X.last : *M;
+		X.frame = Device.dwFrame;
+	}
+	X.last = *M;
+
+	RCache.set_xform_world_prev(X.prev);
+}
+
+static void prune_dynamic_world_prev()
+{
+	static u32 last_prune = 0;
+	if (Device.dwFrame - last_prune < 600)
+		return;
+	last_prune = Device.dwFrame;
+
+	for (auto it = g_prev_world_xforms.begin(); it != g_prev_world_xforms.end();)
+	{
+		if (Device.dwFrame - it->second.frame > 2)
+			it = g_prev_world_xforms.erase(it);
+		else
+			++it;
+	}
+}
+#endif
+
 namespace
 {
 class CCustomFOVInitializer
@@ -93,6 +149,7 @@ class CCustomFOVInitializer
 	bool enabled;
 	bool near_depth;
 	Fmatrix saved_project;
+	Fmatrix saved_project_prev;
 	Fmatrix saved_full;
 
 public:
@@ -108,6 +165,12 @@ public:
 		if (near_depth) RImplementation.rmNear();
 		Device.mFullTransform.mul(project, Device.mView);
 		RCache.set_xform_project(project);
+#ifdef USE_DX11
+		// With only the current projection swapped, a still object reports the
+		// difference between the two FOVs as motion.
+		saved_project_prev = RCache.xforms.m_p_prev[Device.m_SecondViewport.IsSVPFrame()]; // pip prev matrices are per viewport (set_P_prev)
+		RCache.set_xform_project_prev(project);
+#endif
 	}
 
 	~CCustomFOVInitializer()
@@ -116,6 +179,9 @@ public:
 		if (near_depth) RImplementation.rmNormal();
 		Device.mFullTransform = saved_full;
 		RCache.set_xform_project(saved_project);
+#ifdef USE_DX11
+		RCache.set_xform_project_prev(saved_project_prev);
+#endif
 	}
 };
 }
@@ -319,6 +385,9 @@ void CDSGraphManager::r_dsgraph_render_graph_sorted(R_dsgraph::mapDSGraphItems<T
 		CCustomFOVInitializer projection(item.fov);
 		// hud matrices resolve through the pose latch, everything else passes through untouched
 		RCache.set_xform_world(*svp_pose_of(item.pMatrix));
+#ifdef USE_DX11
+		set_dynamic_world_prev(item.pMatrix);
+#endif
 		RImplementation.apply_object(item.pObject);
 		RImplementation.apply_lmaterial();
 		//if (item.b_hud_mode)
@@ -339,11 +408,19 @@ void CDSGraphManager::r_dsgraph_render_graph_sorted(R_dsgraph::mapDSGraphItems<T
 		graph.clear();
 
 	RCache.set_xform_world(Fidentity);
+#ifdef USE_DX11
+	RCache.set_xform_world_prev(Fidentity);
+#endif
 }
 
 void CDSGraphManager::r_dsgraph_render_graph(RenderQueueArray& queues, u32 _priority, bool _clear, bool static_geometry)
 {
 	RCache.set_xform_world(Fidentity);
+#ifdef USE_DX11
+	RCache.set_xform_world_prev(Fidentity);
+	if (!static_geometry)
+		prune_dynamic_world_prev();
+#endif
 
 	for (u32 iPass = 0; iPass < SHADER_PASSES_MAX; ++iPass)
 	{
@@ -453,6 +530,9 @@ void CDSGraphManager::r_dsgraph_render_graph(RenderQueueArray& queues, u32 _prio
 			if (!static_geometry)
 			{
 				RCache.set_xform_world(*item.pMatrix);
+#ifdef USE_DX11
+				set_dynamic_world_prev(item.pMatrix);
+#endif
 				RImplementation.apply_object(item.pObject);
 				RImplementation.apply_lmaterial();
 			}
@@ -470,6 +550,11 @@ void CDSGraphManager::r_dsgraph_render_graph(RenderQueueArray& queues, u32 _prio
 			queue.sorted = false;
 		}
 	}
+
+#ifdef USE_DX11
+	if (!static_geometry)
+		RCache.set_xform_world_prev(Fidentity);
+#endif
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -603,10 +688,198 @@ void CDSGraphManager::r_dsgraph_render_ReflexSorted()
 }
 #endif
 
+#if RENDER == R_R4
+void CDSGraphManager::r_dsgraph_extract_native_ui()
+{
+	// Hold PDA screens and WearableDevices screen glass for the native pass.
+	// Attachment widgets draw directly through RenderActiveItemUI, outside these
+	// queues. Their glass must follow them instead of being baked into the scene.
+	RGraph.hasNativeHudAttachments = false;
+	dlss::ExtractNativeUi(RGraph.mapHUDSorted.Sorted, RGraph.mapHUDNativeUi, [this](const auto& item)
+	{
+		for (const auto& pass : item.pSE->passes)
+		{
+			if (!pass->T) continue;
+			for (const auto& texture : *pass->T)
+			{
+				if (!texture.second) continue;
+				if (texture.second->cName == "$user$ui") return true;
+				if (dlss::IsWearableScreenGlass(texture.second->cName.c_str()))
+				{
+					RGraph.hasNativeHudAttachments = true;
+					return true;
+				}
+			}
+		}
+		return false;
+	});
+	// Do not leave a second copy in an emissive or distortion scene pass.
+	dlss::RemoveNativeUiDuplicates(RGraph.mapHUDSorted.Emissive, RGraph.mapHUDNativeUi);
+	dlss::RemoveNativeUiDuplicates(RGraph.mapHUDSorted.Distort, RGraph.mapHUDNativeUi);
+}
+
+void CDSGraphManager::r_dsgraph_render_native_ui(bool renderHudUi)
+{
+	PROF_EVENT("r_dsgraph_render_native_ui");
+	// Draw widgets once, at display resolution with the unjittered HUD projection,
+	// before the sorted PDA/glass meshes, preserving the forward-pass ordering.
+	if (renderHudUi) r_dsgraph_render_hud_ui();
+	CHudInitializer initializer(true);
+	RImplementation.rmNear();
+	r_dsgraph_render_graph_sorted(RGraph.mapHUDNativeUi, true);
+	RImplementation.rmNormal();
+}
+
+void CDSGraphManager::r_dsgraph_extract_dlss_effects()
+{
+	// Laser beams are thin and bright, and follow the weapon without motion
+	// vectors of their own; reconstructed, they flickered. Hold them, on the
+	// weapon and on NPCs, for the pass after the upscaler.
+	const auto isLaser = [](const auto& item)
+	{
+		for (const auto& pass : item.pSE->passes)
+		{
+			const char* name = pass->ps ? pass->ps->cName.c_str() : nullptr;
+			if (name && !strncmp(name, "models_laserbeam", 16)) return true;
+		}
+		return false;
+	};
+	// Holo and red dot reticles on the weapon, too: reconstructed from fewer
+	// pixels they came out blurred. Reticles with the scope lens flag are in the
+	// scope lists instead and already drawn after the upscaler.
+	const auto isEffect = [&](const auto& item)
+	{
+		if (isLaser(item)) return true;
+		for (const auto& pass : item.pSE->passes)
+		{
+			const char* name = pass->ps ? pass->ps->cName.c_str() : nullptr;
+			if (name && !strncmp(name, "models_reflex_reticle", 21)) return true;
+		}
+		return false;
+	};
+	dlss::ExtractNativeUi(RGraph.mapHUDSorted.Sorted, RGraph.mapDlssHudEffects, isEffect);
+	const auto hold = [&](auto& list, const auto& predicate)
+	{
+		list.erase(std::remove_if(list.begin(), list.end(), [&](const auto& item)
+		{
+			if (!predicate(item)) return false;
+			RGraph.mapDlssEffects.push_back(item);
+			return true;
+		}), list.end());
+	};
+	hold(RGraph.mapDynamicSorted.Sorted, isLaser);
+	// Attachments with their own FOV draw like world geometry, with the FOV in the item.
+	hold(RGraph.mapCustomFOVSorted.Sorted, isEffect);
+}
+
+void CDSGraphManager::r_dsgraph_render_dlss_effects()
+{
+	PROF_EVENT("r_dsgraph_render_dlss_effects");
+	r_dsgraph_render_graph_sorted(RGraph.mapDlssEffects, true);
+	if (RGraph.mapDlssHudEffects.empty()) return;
+	CHudInitializer initializer(true);
+	RImplementation.rmNear();
+	r_dsgraph_render_graph_sorted(RGraph.mapDlssHudEffects, true);
+	RImplementation.rmNormal();
+}
+
+// Reflex sight reticles without the scope lens flag stay in the scene with the
+// HUD when effects are not held for after the upscaler. Keep copies for frame
+// generation's mask, drawn after the upscaler. Held reticles are already gone
+// from these lists and go into the mask with the laser beams.
+void CDSGraphManager::r_dsgraph_extract_fg_reticles()
+{
+	RGraph.mapFgReticles.clear();
+	const auto copyReticles = [&](const auto& list)
+	{
+		for (const auto& item : list)
+		{
+			for (const auto& pass : item.pSE->passes)
+			{
+				const char* name = pass->ps ? pass->ps->cName.c_str() : nullptr;
+				if (!name || strncmp(name, "models_reflex_reticle", 21)) continue;
+				RGraph.mapFgReticles.push_back(item);
+				break;
+			}
+		}
+	};
+	copyReticles(RGraph.mapHUDSorted.Sorted);
+	copyReticles(RGraph.mapCustomFOVSorted.Sorted);
+}
+
+void CDSGraphManager::r_dsgraph_render_fg_reticles()
+{
+	PROF_EVENT("r_dsgraph_render_fg_reticles");
+	// Custom FOV attachments were drawn in the scene without the HUD setup.
+	R_dsgraph::mapDSGraphItems<float, true> customFov;
+	auto& reticles = RGraph.mapFgReticles;
+	reticles.erase(std::remove_if(reticles.begin(), reticles.end(), [&](const auto& item)
+	{
+		if (item.fov == 0.f) return false;
+		customFov.push_back(item);
+		return true;
+	}), reticles.end());
+	r_dsgraph_render_graph_sorted(customFov, true);
+	if (reticles.empty()) return;
+
+	CHudInitializer initializer(true);
+	RImplementation.rmNear();
+	r_dsgraph_render_graph_sorted(RGraph.mapFgReticles, true);
+	RImplementation.rmNormal();
+}
+
+void CDSGraphManager::r_dsgraph_render_fg_mask(bool reticles)
+{
+	PROF_EVENT("r_dsgraph_render_fg_mask");
+	// Only these: the effects lists may hold particles, and the scope lists lenses.
+	// The effects lists also hold the reflex reticles taken out of the scene.
+	const auto matches = [&](const auto& item)
+	{
+		for (const auto& pass : item.pSE->passes)
+		{
+			const char* name = pass->ps ? pass->ps->cName.c_str() : nullptr;
+			if (!name) continue;
+			if (!strncmp(name, "models_reflex_reticle", 21)) return true;
+			if (!reticles && !strncmp(name, "models_laserbeam", 16)) return true;
+		}
+		return false;
+	};
+	const auto anyMatch = [&](const auto& from)
+	{
+		return std::any_of(from.begin(), from.end(), matches);
+	};
+	const auto draw = [&](const auto& from)
+	{
+		std::decay_t<decltype(from)> items;
+		for (const auto& item : from)
+		{
+			if (matches(item)) items.push_back(item);
+		}
+		this->r_dsgraph_render_graph_sorted(items, true);
+	};
+
+	if (!reticles) draw(RGraph.mapDlssEffects);
+	const auto& hud = reticles ? RGraph.mapScopeHUDSorted : RGraph.mapDlssHudEffects;
+	const bool camScopes = reticles && anyMatch(RGraph.mapScopeCamAttachedSorted);
+	if (!anyMatch(hud) && !camScopes) return;
+
+	CHudInitializer initializer(true);
+	RImplementation.rmNear();
+	draw(hud);
+	if (camScopes)
+	{
+		initializer.SetCamMode();
+		draw(RGraph.mapScopeCamAttachedSorted);
+	}
+	RImplementation.rmNormal();
+}
+#endif
+
 void CDSGraphManager::r_dsgraph_render_sorted_hud()
 {
 	PROF_EVENT("r_dsgraph_render_sorted_hud");
 #if	RENDER==R_R4
+	// with the scene held in floating point for the upscaler (dlss_hdr_swapped) the seed is skipped
 	{
 		// guard the seed CopyResource, it is a silent no-op + debug-layer spam when accum and generic0
 		// formats mismatch (MSAA vs 1x, or HDR-off A8 vs A16F)
@@ -615,7 +888,7 @@ void CDSGraphManager::r_dsgraph_render_sorted_hud()
 		D3D_TEXTURE2D_DESC dd, sd;
 		dst->GetDesc(&dd);
 		src->GetDesc(&sd);
-		if (dd.Format == sd.Format && dd.SampleDesc.Count == sd.SampleDesc.Count && dd.Width == sd.Width && dd.Height == sd.Height)
+		if (!RImplementation.Target->dlss_hdr_swapped && dd.Format == sd.Format && dd.SampleDesc.Count == sd.SampleDesc.Count && dd.Width == sd.Width && dd.Height == sd.Height)
 			HW.pContext->CopyResource(dst, src);
 	}
 #endif

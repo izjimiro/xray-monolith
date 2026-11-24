@@ -266,6 +266,9 @@ namespace R_dsgraph
 		mapSorted<float, true, false, false, false> mapCamAttachedSorted;
 		mapDSGraphItems<float, false> mapWater;
 #ifdef USE_DX11
+		// PDA screens and wearable screen glass held outside the temporal scene.
+		mapDSGraphItems<float, true> mapHUDNativeUi;
+		bool hasNativeHudAttachments = false;
 		mapDSGraphItems<float, true> mapScopeHUDSorted;
 		mapDSGraphItems<float, true> mapPhysicalScopeGlass; // Actual routed, skinned glass; never optical ocular geometry.
 		mapDSGraphItems<float, true> mapScopeHUDObjective; // pip front objective geometry, shared by the SVP camera and forward optical-material pass
@@ -273,6 +276,11 @@ namespace R_dsgraph
 		mapDSGraphItems<float, true> mapScopeHUDOverlay; // pip non-lens 3DSS late-pass meshes (iScopeLense==11) under true PiP
 		mapDSGraphItems<float, true> mapScopeReflexHUD; // 3DSS reflex reticles (iScopeLense==10) for the reticle pass
 		mapDSGraphItems<float, false> mapScopeHUD;
+		// Laser beams, and particles with the post chain, drawn after the upscaler.
+		mapDSGraphItems<float, true> mapDlssEffects;
+		mapDSGraphItems<float, true> mapDlssHudEffects;
+		// Reflex sight reticles drawn in the scene, copied for frame generation's mask.
+		mapDSGraphItems<float, true> mapFgReticles;
 		mapDSGraphItems<float, false> mapScopeCamAttached;
 		mapDSGraphItems<float, false> mapScopeCamAttachedSorted;
 #endif
@@ -302,6 +310,9 @@ namespace R_dsgraph
 				mapDynamicSorted.Emissive.clear_and_free();
 				mapDynamicSorted.Sorted.clear_and_free();
 				mapDynamicSorted.Distort.clear_and_free();
+#ifdef USE_DX11
+				mapDlssEffects.clear_and_free();
+#endif
 			}
 			else
 			{
@@ -309,6 +320,9 @@ namespace R_dsgraph
 				mapDynamicSorted.Emissive.clear();
 				mapDynamicSorted.Sorted.clear();
 				mapDynamicSorted.Distort.clear();
+#ifdef USE_DX11
+				mapDlssEffects.clear();
+#endif
 			}
 		}
 
@@ -337,6 +351,9 @@ namespace R_dsgraph
 		template<bool free = true>
 		IC void clear_hud()
 		{
+#ifdef USE_DX11
+			hasNativeHudAttachments = false;
+#endif
 			if constexpr (free)
 			{
 				mapUI3D.clear_and_free();
@@ -359,6 +376,9 @@ namespace R_dsgraph
 				mapCamAttachedSorted.Distort.clear_and_free();
 
 #ifdef USE_DX11
+				mapHUDNativeUi.clear_and_free();
+				mapDlssHudEffects.clear_and_free();
+				mapFgReticles.clear_and_free();
 				mapScopeCamAttached.clear_and_free();
 				mapScopeCamAttachedSorted.clear_and_free();
 				mapScopeHUD.clear_and_free();
@@ -392,6 +412,9 @@ namespace R_dsgraph
 				mapCamAttachedSorted.Distort.clear();
 
 #ifdef USE_DX11
+				mapHUDNativeUi.clear();
+				mapDlssHudEffects.clear();
+				mapFgReticles.clear();
 				mapScopeCamAttached.clear();
 				mapScopeCamAttachedSorted.clear();
 				mapScopeHUD.clear();

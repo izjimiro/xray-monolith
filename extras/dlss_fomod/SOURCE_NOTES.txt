@@ -1,0 +1,273 @@
+FOMOD SOURCE AND PACKAGING NOTES
+================================
+
+These technical notes and SOURCE_MANIFEST.json remain in the repository
+and build output. The user ZIP contains installation instructions and credits.
+
+LAYOUT
+------
+The canonical source for shared helpers, UI and the Atmospherics / WearableDevices
+overrides remains extras/dlss_gamma/gamedata. The FOMOD builder routes those
+files into separate components instead of installing them all unconditionally.
+
+Since 0.63 the patch replaces no ssfx_* shader (AO, IL, SSR, SSS, SSS-ext,
+water SSR). Earlier versions added an upscaler jitter offset to their history
+lookups, plus a per-tile noise offset in Atmospherics GTAO. A side-by-side
+test showed no visible difference, and the overrides had to track every SSS /
+Atmospherics release. SSS and Atmospherics now always use their own. The
+removed overrides remain in git history if the GTAO noise offset is ever
+needed again.
+
+extras/dlss_fomod/sss235 contains SSS 23.5's deffer_impl_flat.ps with motion
+vectors, installed by the mandatory base component. The RC8 hotfix 4 and RC8.1
+choices replace it with Atmospherics' version at priority 100; RC8.1 also gets
+two RC8.1 headers (see ATMOSPHERICS). WearableDevices is installed
+only when selected, with priority 200.
+
+The Better Beef's checkbox installs its three shader overrides at priority
+200. When combined with RC8 hotfix 4 or RC8.1, a conditional priority-300 merge
+replaces only combine_2_naa.ps. With the checkbox off, none of these overrides is installed.
+
+The flat extras/dlss_gamma payload is retained for existing release
+workflows; its deffer_impl_flat.ps is the Atmospherics RC8.1 version.
+Use tools/dlss/package_compatibility.py to build the multi-variant FOMOD.
+
+BASE SOURCES
+------------
+Source archive: ScreenSpaceShaders_Update23_5.zip
+SHA256: f442e925248620451b525ac037b0a58b9bd97303abcecc695d600b71884025b4
+
+SSS archive members and the corresponding installed GAMMA files matched
+when preparing this package. Individual input and output hashes are recorded
+in SOURCE_MANIFEST.json.
+
+deffer_impl_flat.ps:
+  Source: 05 - Rain - Puddles/gamedata/shaders/r3/deffer_impl_flat.ps
+  Add the motion-vector header and assign O.velocity before returning.
+  Keep SSS's 0.95 terrain material and 0.6 normal-strength values; do not copy
+  Atmospherics' material sentinel or normal-strength changes into this file.
+  SSS's Puddles module replaces the MV main file's version and drops the
+  velocity output; without it flat ground has no motion vectors.
+
+ATMOSPHERICS
+------------
+The installed stock GAMMA Atmospherics package identifies its source as
+Atmospherics_GAMMA_2.68.93_hotfix3.7z. It does not supply deffer_impl_flat.ps,
+so its choice retains the SSS base. Its separate sky shader includes
+night_vision.h, which is why the existing header remains in the shared base.
+
+Atmospherics 2.69 RC8 hotfix 4 and RC8.1 are the 2.69 choices since 0.73;
+RC7.x and earlier RC8 hotfixes are no longer supported. Both work with every
+sunshaft, AO, fog, horizon, IL and SSR option in their installers, since none
+of those files is touched.
+
+atmos_rc8 / atmos_rc81 deffer_impl_flat.ps (extras/dlss_gamma):
+  Start with RC8.1's "In common" file, newlines normalized. Add the
+  motion-vector header and assign O.velocity before returning. RC8 hotfix 4's
+  file differs from RC8.1's only by one comment line, so both choices install
+  this one.
+
+RC8.1 dithers several values with noise that changes over time, which only an
+accumulating TAA hides. DLSS and FSR are not denoisers: noise in their inputs
+shows as grain or shimmer, most on the HUD, where SSS rejects most history
+while the weapon sways. The atmos_rc81 component (extras/dlss_fomod/atmos_rc81)
+replaces two RC8.1 headers. Each change applies only while dlss_params.x is
+set (DLSS / FSR active in the main view), so RC8.1 renders as shipped otherwise.
+
+atmos_rc81/atmos_hud_mtl.h:
+  Start with RC8.1's "In common" file. Include dlss_contract.h. Add
+  atmos_code_dither, 0.5 under the upscaler and atmos_code_noise otherwise,
+  and use it for the material codes packed into the albedo's low bits
+  (metalness, translucency, grass AO). The cloth flag uses a 0.5 threshold
+  under the upscaler instead of a noise threshold. The codes are then rounded
+  (30-31 levels, 4 for grass AO) rather than dithered. atmos_code_noise itself
+  is unchanged, so RC8.1's blood decals keep their temporal dither (see below).
+
+atmos_rc81/screenspace_shadows.h:
+  Start with RC8.1's "In common" file. Include dlss_contract.h. Under the
+  upscaler, HUD pixels use the interleaved-gradient ray offset without its
+  time term, and atmos_sss_point_hud (light shadows on the HUD, lit directly
+  with no history) uses a still interleaved gradient instead of per-frame
+  white noise. World pixels keep RC8.1's noise, which SSS accumulates.
+
+RC8.1's own jitter handling needs no change: ssfx_jitter carries the
+upscaler's clip-space jitter in these binaries, and RC8.1 removes it the same
+way it removes SSS's TAA jitter.
+
+RC8.1 adds its own deffer_grass.vs, which the base component's version
+overrides: RC8.1's drops our previous-frame wave (wave_prev / dir2D_prev) and
+the upscaler jitter on swaying grass, and adds a per-blade direction in M2.xy
+that its deffer_grass.ps uses for the fake up normal (falling back to a fixed
+(1, 0) when M2.xy is zero). The base deffer_grass.vs writes the same M2.xy.
+Every other grass pixel shader in the supported stacks reads only M2.z.
+
+RC8.1's effects_wallmark_blood.ps reads ssfx_upscaling_setup (SSS 24's engine
+constant: upscaler 0 off / 1 FSR / 2 DLSS, then render scale) to choose
+temporally varying dither for blood decals. These binaries bind it since 0.73.
+Its other shaders read ssfx_timedelta, volume_range and s_patched_normal,
+which these binaries also bind.
+
+GLOSSY PUDDLES OVERHAUL V2.6
+----------------------------
+Source: Glossy Puddles Overhaul v2.6 - Erandis (local FOMOD). Glossy Puddles
+replaces deffer_impl_flat.ps without the motion-vector output, so flat ground
+loses temporal motion under DLSS / FSR. Its FOMOD ships two versions of that
+file for SSS 23.5: "PBR Puddles" (PBR Shader Based Weathers) and "SSS
+Puddles" (SSS Based Weathers). Up to v2.5 the SSS 24 / RC3 folders held the
+same files; in v2.6 the PBR RC3 file uses SSS 24's rain ripple function
+instead. This patch requires SSS 23.5, so it starts from the non-RC3 files.
+
+glossy_puddles_pbr / glossy_puddles_sss deffer_impl_flat.ps:
+  Add #include "screenspace_mvectors.h" and assign O.velocity before
+  returning, exactly as in the other deffer_impl_flat.ps variants. Nothing
+  else edited. A user-reported fix for the PBR version made the same change.
+  The PBR file declares bus_erandis behind GP_BUS_ERANDIS_DECLARED, because
+  its settings_screenspace_PUDDLES.h also declares it.
+
+Older versions are not supported: v2.5's pbr_brdf_terrain.h uses
+ALBEDO_AMOUNT, which RC8.1 no longer defines, so 35 RC8.1 shaders fail to
+compile with it, with or without this patch.
+
+v2.6 supports RC8.1 (its PBR terrain files are rebuilt for RC8.1's PBR
+terrain textures, adding gp_terrain_pbr.h, shadow_direct_terrain.vs and a
+copy of RC8.1's gbuffer_stage.h). Both deffer_impl_flat.ps files add an afterglow
+tint fed by a new shader bus lane (bus_emission_afterglow, from
+glossy_puddles_afterglow_mcm.script in its new Common folder) and include
+the new gp_prank.h (a debug colouring, 0 unless its "I didn't read" installer
+option sets it). The patched files now start from v2.6, so they need v2.6
+installed (gp_prank.h and G_PUDDLES_AFTERGLOW_DAMP are v2.6's). Its terrain
+shaders keep their motion vectors.
+
+Every Atmospherics choice sets dlss_weather_family: pbr for RC8.1, sss
+otherwise. With the checkbox on, a conditional install at priority 250 picks
+the matching file. Its other files (scripts, terrain shader, SSR header) keep
+motion vectors or touch nothing this patch overrides and are not included.
+The shader_bus Lua API it uses is in these binaries (upstream 2026-10-11).
+
+WEARABLEDEVICES
+---------------
+The third page installs wd_body.vs when selected. It is WearableDevices v0.10.1's
+file plus the scene jitter while DLSS/FSR is active, inside v0.10.1's
+SSFX_MV_LOADED guard (defined in GAMMA through common.h -> gbuffer_stage.h).
+No glow/bloom workaround, device draw-order change or engine rollback is
+included. The original mod itself is not bundled.
+
+BETTER BEEF'S NVGS
+------------------
+Source: BetterBeefsNVGs_indiesunpraiser.19 supplied for this integration.
+The linked ModDB page currently identifies its download as .18; the local
+supplied .19 files are the source of this patch, not an assumed web revision.
+Source members and byte hashes are recorded under better_beefs in the manifest.
+
+The previous compatibility header derives from stock Beef's NVG. Better
+Beef's generation shaders instead construct NVGParams and call nvg_process;
+the stock header does not supply that interface. Its .19 Lua scripts also
+pack extra per-generation settings that the stock header does not implement.
+
+better_beefs/night_vision.h:
+  Copy the full supplied 00 - Main header, retaining its controls/functions.
+  Add a depth GetDimensions query in blurred_depth and use the depth resource
+  dimensions for its two integer Load coordinates. Keep screen_res for colour,
+  noise, blur radius and display effects. This matches the existing stock NVG
+  correction: the engine runs phase_nightvision after reconstruction while
+  s_position remains at scene resolution. NVG processing stays native-sized.
+
+better_beefs/pp_blur.ps:
+  Start from 02 - PATCH - [ SSS ]. Keep its NVG half/quarter/eighth-res pipeline
+  and SSFX_Blur fallback. Use s_position.GetDimensions for the first half-res
+  pass's two depth loads. The current engine runs phase_blur before temporal
+  reconstruction, so this preserves the existing mapping there and avoids
+  assuming a colour-pass size for depth lookups. Blur pass selection/radii
+  retain screen_res, matching phase_blur's RenderScreenWidth/Height constants.
+
+better_beefs/combine_2_naa.ps:
+  Preserve the original 02 - PATCH - [ SSS ] file, including the condition
+  that excludes an active NVG lens from SSS LUT grading. Used with SSS-only
+  and stock Atmospherics, which does not supply this combine shader.
+
+better_beefs_atmos_rc8/combine_2_naa.ps:
+  Unchanged from 0.72 (restored from git): RC8 hotfix 4's "In common" file with
+  the same Better Beef's LUT-mask condition. Only installed when BOTH RC8
+  hotfix 4 and Better Beef's are selected.
+
+better_beefs_atmos_rc81/combine_2_naa.ps:
+  Start with Atmospherics RC8.1's "In common" file, newlines normalized.
+  Add the same Better Beef's LUT-mask condition around ssfx_lut_pp, keeping
+  RC8.1's debanding, dither and bloom. Only installed when BOTH RC8.1 and
+  Better Beef's are selected.
+
+The original mod remains responsible for its generation shaders, settings
+and Lua scripts, including its FDDA Redone patch where applicable. Its
+03 - PATCH - [ SSS Weapons DOF ] must remain installed when that SSS module
+is used; it preserves the mod's encoded-blur handling. That shader reads
+depth via SSFX_get_position and runs before reconstruction in this engine,
+so it is not overridden by this compatibility package.
+
+All four compatibility shaders retain original author comments/credits.
+No C++ changes, new runtime constants or extra rendering passes are added.
+
+BUILD
+-----
+From the repository root with Python 3.10 or later:
+  python tools/dlss/package_compatibility.py
+
+Default output:
+  _build/releases/<VERSION>/
+
+Use --output with a new directory for another build. The builder refuses to
+overwrite an existing output directory. It packages only explicit shader/UI
+sources, instructions, selection records and the FOMOD XML. It does not read
+the user's current mod installation, compile shaders, run tests, launch MO2,
+change profiles or install binaries. Source archives are not needed to rebuild.
+
+The separate build MANIFEST.json lists archive member sizes and hashes.
+SOURCE_MANIFEST.json records provenance of the SSS, Atmospherics, Better
+Beef's and Glossy Puddles source files. Updating shader sources requires
+updating this provenance and the stated compatibility versions deliberately.
+
+STATUS
+------
+0.73: Atmospherics RC8.1 is added and the RC7 choice removed; RC8 stays as
+RC8 hotfix 4. Glossy Puddles moves to v2.6. The RC8.1 choice also holds RC8.1's
+per-frame material and HUD shadow noise still under DLSS / FSR. Checked with
+fxc ps_5_0 / vs_5_0, no defines, every .ps/.vs over the SSS 23.5 base, with
+and without the patch. The patch adds no failure on RC8.1 or RC8 hotfix 4 with
+either feature set (Atmos: volumetric sunshafts, GTAO High, Atmos fog,
+geometric horizon, Atmos IL and SSR; SSS: screen-space sunshafts and SSS AO,
+fog, heuristic horizon, IL, SSR), with Better Beef's on each, with Glossy
+Puddles v2.6 PBR on each (Atmos set, with its Atmos SSR files), with Glossy
+Puddles v2.6 SSS or Better Beef's on SSS 23.5 alone. The failures common to
+both sides are variants needing engine defines (skinning, MSAA, shadow and
+SSAO options); ui_icons.vs, new to the patch, compiles with the skinning
+defines. The users of RC8.1's screenspace_shadows.h (accum_base, accum_omni_
+unshadowed, accum_sun_near/far, ssfx_sss, ssfx_sss_ext) compile with the
+engine's SSFX_SSS_DIR_QUALITY / SSFX_SSS_OMNI_QUALITY defines, with and
+without the patch. Not installed through MO2 or played.
+
+0.721: compatibility patch only, for the same 0.72 binaries. Glossy Puddles
+moves to v2.5 and Better Beef's + RC8 to RC8 hotfix 4 (with an RC8 fallback).
+Checked with fxc: the patch's own shaders compile and break none of the mods'
+shaders on RC8 hotfix 4 (both feature sets), hotfix 4 and original RC8 with
+Better Beef's, and Glossy Puddles v2.5 on hotfix 4 (PBR with both SSR choices),
+RC7.71, stock Atmospherics and SSS only. Not installed through MO2 or played.
+
+0.72: lmape.vs, dlss_volumetric_history.ps and the frame generation laser fill
+shaders join the base component, and Atmospherics RC8 gets its own choice. The
+patch's own shaders compile on SSS 23.5, stock Atmospherics, RC7.71 and RC8
+(with either feature set, or with Better Beef's), and break none of RC8's
+shaders. Glossy Puddles v2.4 compiles on all of these stacks (PBR with both
+SSR choices, SSS) and the patch breaks none of their shaders on top of it.
+This exact package was not installed through MO2.
+
+0.71: vert.vs joins the base component. The patch's own shaders compile on SSS 23.5,
+stock Atmospherics and RC7.71. This exact package was not installed through MO2,
+and the other installer choices were not exercised.
+
+0.7: the patch's own shaders compile on SSS 23.5, stock Atmospherics and RC7.71.
+The test build of this patch was installed through MO2 with the RC7.x choice and
+played; the other installer choices were not exercised.
+
+0.63: the three-page installer was installed through MO2 and the game loaded
+with it; not every option combination was exercised. SSS, stock Atmospherics
+and RC7.71 shaders compile on top of this patch, and the Glossy Puddles
+shaders compile with the same results as the originals.

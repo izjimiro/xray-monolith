@@ -1,0 +1,12 @@
+# 0.73
+* Updated to the latest modded exes (2026.11.22): attachment and 3D icon fixes, leg IK fixes, new binocular UI, NPC vision and smart cover fixes and more
+* Fixed the new upstream weapon attachments, custom FOV attachments and camera-attached scopes ghosting or not drawing correctly with the upscaler
+* Holo/red dot reticles from the new upstream reticle code are drawn after the upscaler, so they stay sharp below native resolution
+* New **Atmospherics RC8.1** compatibility option (RC8 option kept, RC7 option removed)
+   * Removed the grain RC8.1 adds on hands, weapons and foliage with DLSS/FSR (its material dithering and hand/weapon shadow noise now hold still)
+   * RC8.1 blood decals use their temporal dither with DLSS/FSR, as they do with SSS 24's upscalers
+   * Keeps RC8.1's grass blade direction, flat ground shader, and its own bloom/debanding/dither with Better Beef's NVGs
+* Compatible with the new Glossy Puddles v2.6 (2.5 no longer supported, it fails to compile shaders with RC8.1)
+* WearableDevices compatibility updated for v0.10.1
+* DLSS Linear Input description now warns it can make foliage behind DoF shimmer when Post-after mode is off
+* Reinstall the compatibility patch with REPLACE and clear the shader cache
