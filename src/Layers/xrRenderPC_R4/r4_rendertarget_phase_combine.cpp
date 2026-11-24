@@ -891,6 +891,14 @@ void CRenderTarget::phase_combine()
 					|| !RImplementation.GMBase.RGraph.mapScopeHUDOverlay.empty()))))
 	{
 		svp_stats::cpu_begin(svp_stats::CPU_LENS);
+		// r_upscaler_post_after: the scene was reconstructed above, so the lens lands unjittered on the display-size
+		// frame, before bloom and the tone map. Its depth tests need the scene depth in the native buffer (widened
+		// at the lens rim as for phase_dlss_scope); the lens pass stamps its own stencil.
+		if (postAfterUpscale)
+		{
+			phase_dlss_native_depth(dlss_post_jitter.x, dlss_post_jitter.y, true);
+			HW.pContext->ClearDepthStencilView(HW.pBaseZB, D3D_CLEAR_STENCIL, 1.f, 0);
+		}
 		phase_3DSSReticle(false); // PiP reticle/depth overlays and legacy 3DSS
 		svp_stats::cpu_end(svp_stats::CPU_LENS);
 	}
