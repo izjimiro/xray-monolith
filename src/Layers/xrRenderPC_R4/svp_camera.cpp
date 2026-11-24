@@ -148,11 +148,19 @@ bool svpCamera()
 	// under mProjectHud, the fit is screen height 2 over that. depth on the view forward, exact off axis
 	Fmatrix eyeW0;
 	eyeW0.invert(mm.mView);
+	// the eye and the lenses relative to svp_origin: far from the level origin the world sums keep only ~0.06 mm
+	// of the eye-to-lens offset the fit and the registration read, which shook the image by up to a pixel
+	extern int ps_r__svp_rebase;
+	Fmatrix eyeR = eyeW0;
+	if (ps_r__svp_rebase)
+		eyeR.invert(params.ViewRelative(mm.mView));
+	const Fmatrix& eyepieceX = ps_r__svp_rebase ? params.eyepiece.m_R : params.eyepiece.m_W;
+	const Fmatrix& objectiveX = ps_r__svp_rebase ? params.objective.m_R : params.objective.m_W;
 	Fvector camfwd;
 	camfwd.set(eyeW0.k);
 	camfwd.normalize();
 	Fvector eyed;
-	eyed.sub(params.eyepiece.m_W.c, eyeW0.c);
+	eyed.sub(eyepieceX.c, eyeR.c);
 	const float lens_depth = eyed.dotproduct(camfwd);
 	const float ndc_height = (lens_depth > EPS) ? (2.f * params.eyepiece.radius * mm.mProjectHud._22 / lens_depth) : 0.f;
 	const bool analytic_ok = params.eyepiece.radius > EPS && lens_depth > EPS && _valid(ndc_height) && ndc_height > 1e-4f;
@@ -300,7 +308,7 @@ bool svpCamera()
 		ax.set(params.eyepiece.m_W.k);
 		ax.normalize_safe();
 		Fvector objective_delta;
-		objective_delta.sub(params.objective.m_W.c, params.eyepiece.m_W.c);
+		objective_delta.sub(objectiveX.c, eyepieceX.c);
 		const float front_use_lens = objective_delta.dotproduct(ax);
 		float front_use = front_use_lens;
 		// a clip-on ahead of the objective owns the entrance, the camera clears its far face
@@ -323,11 +331,11 @@ bool svpCamera()
 			if (ps_r__svp_weapon_continuity && !flat_optic && svp_optic_eye_coupled() && params.objective.radius > EPS)
 			{
 				Fmatrix eyepiece_inverse;
-				if (_valid(params.eyepiece.m_W.i) && _valid(params.eyepiece.m_W.j) && _valid(params.eyepiece.m_W.k) &&
-					_valid(params.eyepiece.m_W.c) && eyepiece_inverse.invert_b(params.eyepiece.m_W))
+				if (_valid(eyepieceX.i) && _valid(eyepieceX.j) && _valid(eyepieceX.k) &&
+					_valid(eyepieceX.c) && eyepiece_inverse.invert_b(eyepieceX))
 				{
-					eyepiece_inverse.transform_tiny(registration_eye_local, eyeW0.c);
-					eyepiece_inverse.transform_tiny(registration_objective_local, params.objective.m_W.c);
+					eyepiece_inverse.transform_tiny(registration_eye_local, eyeR.c);
+					eyepiece_inverse.transform_tiny(registration_objective_local, objectiveX.c);
 					objective_registration = SvpPhysicalOptics::MapObjectiveAxisToEyepiece(
 						{ registration_eye_local.x, registration_eye_local.y, registration_eye_local.z },
 						{ 0.f, 0.f, registration_objective_local.z }, { params.eyepiece.radius, params.eyepiece.radius });

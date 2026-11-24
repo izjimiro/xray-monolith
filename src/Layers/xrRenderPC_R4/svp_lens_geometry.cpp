@@ -253,6 +253,10 @@ void CRender::deriveScopeLens()
 		// a skinned scope lens is positioned by its bone, the captured matrix is only the kinematics
 		// root, fold in the lens bone skinning matrix so the eyepiece follows the glass on ADS and sway
 		Fmatrix lensX = *GMBase.svp_pose_of(N.pMatrix);
+		// the same pose less the camera position, subtracted before any world-sized sum (exact: one float grid)
+		const Fvector origin = Device.vCameraPosition;
+		Fmatrix lensR = lensX;
+		lensR.c.sub(origin);
 		CSkeletonX* sk = fast_dynamic_cast<CSkeletonX*>(N.pVisual);
 		bool lens_bone = false;
 		if (sk)
@@ -261,6 +265,7 @@ void CRender::deriveScopeLens()
 			if (GMBase.svp_lens_bone_of(N.pVisual, boneR) || sk->SVP_LensBoneXform(boneR))
 			{
 				lensX.mulB_43(boneR);
+				lensR.mulB_43(boneR);
 				lens_bone = true;
 			}
 		}
@@ -270,11 +275,15 @@ void CRender::deriveScopeLens()
 		V.box.getcenter(c); // AABB center fits a flat lens disc tighter than the bounding sphere center
 		Fmatrix m_W = lensX;
 		m_W.mulB_43(Fmatrix().translate(c));
+		lensR.mulB_43(Fmatrix().translate(c));
 		float radius = V.sphere.R;
 
 		auto* p = &Device.m_SecondViewport;
 
 		p->eyepiece.m_W = m_W;
+		p->eyepiece.m_R = lensR;
+		p->objective.m_R.c.add(Fvector().sub(p->svp_origin, origin)); // an objective not refreshed below stays valid
+		p->svp_origin = origin;
 		p->eyepiece.radius = radius;
 		p->svp_lens_root = N.pMatrix;
 		p->svp_lens_visual = N.pVisual;
@@ -457,6 +466,10 @@ void CRender::deriveScopeLens()
 				p->objective.m_W.c.mad(fwd, off.z * er);
 				p->objective.m_W.c.mad(ri, off.x * er);
 				p->objective.m_W.c.mad(up, off.y * er);
+				p->objective.m_R = p->eyepiece.m_R;
+				p->objective.m_R.c.mad(fwd, off.z * er);
+				p->objective.m_R.c.mad(ri, off.x * er);
+				p->objective.m_R.c.mad(up, off.y * er);
 				p->objective.radius = (off.w > EPS) ? off.w * er : p->eyepiece.radius * ps_r__svp_obj_size;
 				have_obj = true;
 			}
@@ -466,23 +479,31 @@ void CRender::deriveScopeLens()
 			{
 				const auto& O = objectives.front();
 				Fmatrix oX = *GMBase.svp_pose_of(O.pMatrix);
+				Fmatrix oR = oX;
+				oR.c.sub(origin);
 				if (CSkeletonX* osk = fast_dynamic_cast<CSkeletonX*>(O.pVisual))
 				{
 					Fmatrix boneR;
 					if (GMBase.svp_lens_bone_of(O.pVisual, boneR) || osk->SVP_LensBoneXform(boneR))
+					{
 						oX.mulB_43(boneR);
+						oR.mulB_43(boneR);
+					}
 				}
 				auto& OV = O.pVisual->getVisData();
 				Fvector oc;
 				OV.box.getcenter(oc);
-				Fvector ow;
+				Fvector ow, owR;
 				oX.transform_tiny(ow, oc);
+				oR.transform_tiny(owR, oc);
 				dbg_cand_dist = ow.distance_to(p->eyepiece.m_W.c);
 				// distinct from the eyepiece (a single-lens scope captures the same disc for both)
 				if (OV.sphere.R > EPS && dbg_cand_dist > p->eyepiece.radius * 0.5f)
 				{
 					p->objective.m_W = p->eyepiece.m_W; // stabilized optical axis
 					p->objective.m_W.c.set(ow); // real front-lens world position
+					p->objective.m_R = p->eyepiece.m_R;
+					p->objective.m_R.c.set(owR);
 					p->objective.radius = OV.sphere.R;
 					have_obj = true;
 				}
@@ -497,6 +518,8 @@ void CRender::deriveScopeLens()
 				p->objective.m_W = p->eyepiece.m_W;
 				const float dist_r = (geom_front > 0.f ? geom_front : svp_fallback_objective_radii) * ps_r__svp_obj_dist;
 				p->objective.m_W.c.mad(fwd, p->eyepiece.radius * dist_r);
+				p->objective.m_R = p->eyepiece.m_R;
+				p->objective.m_R.c.mad(fwd, p->eyepiece.radius * dist_r);
 				p->objective.radius = p->eyepiece.radius *
 					ps_r__svp_obj_size; // eyepiece-relative objective radius (one global knob): the front-node geomscan swung ~6x conflating glass vs bell housing, eyepiece radius is the only mesh-scale-stable unit
 			}

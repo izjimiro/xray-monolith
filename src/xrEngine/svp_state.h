@@ -40,7 +40,9 @@ public:
 	}
 
 	// true PiP additions
-	struct Lens { Fmatrix m_W; float radius; };
+	// m_R: m_W less svp_origin, built before any world-sized sum. Far from the level origin a float world position
+	// keeps only ~0.06 mm, so eye-to-lens math there takes m_R and ViewRelative (r__svp_rebase)
+	struct Lens { Fmatrix m_W; float radius; Fmatrix m_R{}; };
 	enum ECameraDomain : u8
 	{
 		camera_main_eye,
@@ -48,6 +50,16 @@ public:
 	};
 	Lens eyepiece;
 	Lens objective;
+	Fvector svp_origin = {}; // the camera position deriveScopeLens subtracted
+	// a view matrix for points relative to svp_origin: same rotation, translation + R * origin summed in double
+	Fmatrix ViewRelative(const Fmatrix& view) const
+	{
+		Fmatrix result = view;
+		for (int j = 0; j < 3; ++j)
+			result.m[3][j] = float(double(view.m[0][j]) * svp_origin.x + double(view.m[1][j]) * svp_origin.y
+				+ double(view.m[2][j]) * svp_origin.z + double(view.m[3][j]));
+		return result;
+	}
 	Fvector3 w_ffp;
 	Fvector3 w_sfp;
 	// pip held lens radii for the debug overlays, cleared when the svp deactivates

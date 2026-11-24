@@ -163,6 +163,7 @@ float ps_r__svp_nvg_bleach = 0.0f; // svp NVG highlight bleach roll-off, replace
 float ps_r__svp_nvg_sensitivity = 1.0f; // svp NVG bleach onset sensitivity, higher rolls off dimmer sources
 int ps_r__svp_nvg_objective = 1; // svp lens draws the centered tube class so wearer mask furniture stays off the glass
 int ps_r__svp_weapon_continuity = 1; // svp same frame weapon pose and entrance pupil camera
+int ps_r__svp_rebase = 1; // svp eye-to-lens math relative to the camera, not the level origin (0 = world sums)
 int ps_r__svp_clipon = 1; // svp a clip-on ahead of the objective owns the entrance (0 = lens pair front)
 int ps_r__svp_optic_body_suppress = 1; // svp omit the housing that contains the objective plane
 int ps_r__svp_cull = 1; // svp cull the scope geometry to the scope frustum, the SVP re-submits the whole main-frustum world otherwise (1 = on)
@@ -430,6 +431,7 @@ void svp_console_init()
 	CMD4(CCC_SvpInternalFloat, "r__svp_nvg_sensitivity", &ps_r__svp_nvg_sensitivity, 0.1f, 4.0f);
 	CMD4(CCC_Integer, "r__svp_nvg_objective", &ps_r__svp_nvg_objective, 0, 1);
 	CMD4(CCC_Integer, "r__svp_weapon_continuity", &ps_r__svp_weapon_continuity, 0, 1);
+	CMD4(CCC_Integer, "r__svp_rebase", &ps_r__svp_rebase, 0, 1);
 	CMD4(CCC_Integer, "r__svp_clipon", &ps_r__svp_clipon, 0, 1);
 	CMD4(CCC_SvpFixedInteger, "r__svp_optic_body_suppress", &ps_r__svp_optic_body_suppress, 0, 1);
 	CMD4(CCC_Integer, "r__svp_cull", &ps_r__svp_cull, 0, 1); // svp frustum cull the scope geometry (1 = on)

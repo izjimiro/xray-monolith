@@ -247,7 +247,11 @@ SSvpEyeSample svp_update_eye_sample(const Fmatrix& eye_view)
 	optical_axis.normalize_safe();
 
 	Fvector lens_center_view, lens_right_view, lens_up_view, axis_view;
-	eye_view.transform_tiny(lens_center_view, eyepiece.m_W.c);
+	extern int ps_r__svp_rebase;
+	if (ps_r__svp_rebase) // relative to svp_origin: the world sum keeps only ~0.06 mm far from the level origin
+		viewport.ViewRelative(eye_view).transform_tiny(lens_center_view, eyepiece.m_R.c);
+	else
+		eye_view.transform_tiny(lens_center_view, eyepiece.m_W.c);
 	eye_view.transform_dir(lens_right_view, lens_right);
 	eye_view.transform_dir(lens_up_view, lens_up);
 	eye_view.transform_dir(axis_view, optical_axis);
@@ -559,8 +563,13 @@ void svp_bind_lens_constants()
 	// pip reticle collimator geometry 2*ocular_radius/eye_distance, the shader rebuilds the
 	// authored reticle magnification as a centered field under true PiP
 	{
+		const auto& vp = Device.m_SecondViewport;
+		extern int ps_r__svp_rebase;
 		Fvector ed;
-		ed.sub(Device.m_SecondViewport.eyepiece.m_W.c, Device.vCameraPosition);
+		if (ps_r__svp_rebase)
+			ed.sub(vp.eyepiece.m_R.c, Fvector().sub(Device.vCameraPosition, vp.svp_origin));
+		else
+			ed.sub(vp.eyepiece.m_W.c, Device.vCameraPosition);
 		const float dist = _max(ed.magnitude(), 0.02f);
 		float kg = 2.f * Device.m_SecondViewport.eyepiece.radius / dist;
 		clamp(kg, 0.02f, 3.f);
