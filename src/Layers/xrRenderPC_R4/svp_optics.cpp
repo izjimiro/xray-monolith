@@ -6,6 +6,7 @@
 #include "../xrRender/dxRenderDeviceRender.h"
 #include "../../xrEngine/igame_persistent.h"
 #include "../../xrEngine/environment.h"
+#include "../../xrEngine/xr_efflensflare.h"
 #include "../../xrEngine/svp_gameplay_cvars.h"
 #if defined(USE_DX11)
 #include "../../../gamedata/shaders/r3/scope_defines.h"
