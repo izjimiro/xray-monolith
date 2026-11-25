@@ -245,12 +245,19 @@ void CRenderTarget::scope_reference_capture_end()
     const auto& p = RImplementation.TargetMain->scope_reference_packet;
     scope_reference_raw_frame = Device.dwFrame;
     scope_reference_raw_stamp = p.Stamp();
-    // near-field defocus, as the plain PiP image gets it in phase_svp_capture
+    // near-field defocus, as the plain PiP image gets it in phase_svp_capture; its mip chain only once it is needed
+    if (!m_svp_nb_raw_mip_tried && ps_r__svp_near_blur > 0.01f)
+    {
+        m_svp_nb_raw_mip_tried = true;
+        svp_nearblur_mips(Width, Height, DXGI_FORMAT_R16G16B16A16_FLOAT, m_svp_nb_raw_mip_surf, m_svp_nb_raw_mip_tex,
+            "$user$svp_nb_raw_mip");
+    }
     svp_reference_target(rt_scope_reference_scene_temp, "$user$svp_reference_scene_temp", Width, Height);
     set_viewport_size(HW.pContext, float(Width), float(Height));
     RCache.set_Scissor(nullptr);
     RCache.set_CullMode(CULL_NONE);
     RCache.set_Stencil(FALSE);
+    RCache.set_ColorWriteEnable();
     if (svp_nearblur_pass(rt_scope_reference_raw->pSurface, m_svp_nb_raw_mip_surf, m_svp_nb_raw_mip_tex,
             rt_scope_reference_scene_temp->pRT))
     {

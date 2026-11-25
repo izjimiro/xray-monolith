@@ -959,22 +959,11 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 		}
 
 		// pip mipped svp color source, feeds the near-blur prefilter so each sparse ring area-averages
-		if (!isMain)
+		if (!isMain && rt_secondVP && rt_secondVP->pSurface) // out of VRAM: svp_target.cpp drops the target, no crash here
 		{
 			D3D_TEXTURE2D_DESC md;
 			rt_secondVP->pSurface->GetDesc(&md);
-			md.MipLevels = 0;
-			md.BindFlags = D3D_BIND_SHADER_RESOURCE | D3D_BIND_RENDER_TARGET;
-			md.MiscFlags = D3D_RESOURCE_MISC_GENERATE_MIPS;
-			md.CPUAccessFlags = 0;
-			R_CHK(HW.pDevice->CreateTexture2D(&md, 0, &m_svp_nb_mip_surf));
-			m_svp_nb_mip_tex = dxRenderDeviceRender::Instance().Resources->_CreateTexture("$user$svp_nb_mip");
-			m_svp_nb_mip_tex->surface_set(m_svp_nb_mip_surf);
-			md.Format = DXGI_FORMAT_R16G16B16A16_FLOAT; // the same for the FP16 Reference raw image
-			R_CHK(HW.pDevice->CreateTexture2D(&md, 0, &m_svp_nb_raw_mip_surf));
-			m_svp_nb_raw_mip_tex = dxRenderDeviceRender::Instance().Resources->_CreateTexture("$user$svp_nb_raw_mip");
-			m_svp_nb_raw_mip_tex->surface_set(m_svp_nb_raw_mip_surf);
-			m_svp_nb_raw_mip_surf->Release(); // the texture holds it
+			svp_nearblur_mips(md.Width, md.Height, md.Format, m_svp_nb_mip_surf, m_svp_nb_mip_tex, "$user$svp_nb_mip");
 		}
 
 		if (ps_r4_atlas)

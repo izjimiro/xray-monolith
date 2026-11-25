@@ -16,6 +16,29 @@ static float svp_objective_mm()
 	return Device.m_SecondViewport.svp_opt_obj_mm;
 }
 
+void CRenderTarget::svp_nearblur_mips(u32 width, u32 height, DXGI_FORMAT format, ID3DTexture2D*& surf, ref_texture& tex,
+	LPCSTR name)
+{
+	D3D_TEXTURE2D_DESC md = {};
+	md.Width = width;
+	md.Height = height;
+	md.ArraySize = 1;
+	md.Format = format;
+	md.SampleDesc.Count = 1;
+	md.Usage = D3D_USAGE_DEFAULT;
+	md.BindFlags = D3D_BIND_SHADER_RESOURCE | D3D_BIND_RENDER_TARGET;
+	md.MiscFlags = D3D_RESOURCE_MISC_GENERATE_MIPS; // MipLevels 0 = the full chain
+	if (FAILED(HW.pDevice->CreateTexture2D(&md, 0, &surf)))
+	{
+		surf = nullptr;
+		Msg("! [SVP-NB] no video memory for the %s mip chain, near blur goes without the prefilter", name);
+		return;
+	}
+	tex.create(name);
+	tex->surface_set(surf);
+	surf->Release(); // the texture holds it
+}
+
 // pip near-field defocus pass, true when it dispatched else the caller copies
 bool CRenderTarget::svp_nearblur_pass(ID3DTexture2D* source, ID3DTexture2D* mips, ref_texture& mips_tex,
 	ID3DRenderTargetView* destination)

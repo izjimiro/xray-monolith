@@ -143,10 +143,11 @@ public:
 	resptr_core<CRT, resptrcode_crt> rt_Generic_temp;
 
 	ref_rt rt_secondVP;	// 32bit		(r,g,b,a) --//#SM+#-- +SecondVP+
-	ID3DTexture2D* m_svp_nb_mip_surf = nullptr; // pip mip-prefiltered svp color for near-blur
+	ID3DTexture2D* m_svp_nb_mip_surf = nullptr; // pip mip-prefiltered svp color for near-blur (held by its texture)
 	ref_texture m_svp_nb_mip_tex; // pip holds the all-mip srv for GenerateMips
-	ID3DTexture2D* m_svp_nb_raw_mip_surf = nullptr; // the same for the FP16 Reference raw image (held by its texture)
+	ID3DTexture2D* m_svp_nb_raw_mip_surf = nullptr; // the same for the FP16 Reference raw image, made on first use
 	ref_texture m_svp_nb_raw_mip_tex;
+	bool m_svp_nb_raw_mip_tried = false;
 
 
 	ref_rt rt_fakescope;	// crookr fakescope
@@ -649,6 +650,8 @@ public:
         const Fvector4 (&constants)[SvpReferenceOpticsFrame::ConstantCount]);
 	// pip near-field defocus of source (via its mipped copy) into destination, true when it ran else the caller copies
 	bool svp_nearblur_pass(ID3DTexture2D* source, ID3DTexture2D* mips, ref_texture& mips_tex, ID3DRenderTargetView* destination);
+	// pip mip chain for that copy, left null when the allocation fails (the pass then samples the source itself)
+	void svp_nearblur_mips(u32 width, u32 height, DXGI_FORMAT format, ID3DTexture2D*& surf, ref_texture& tex, LPCSTR name);
 	void draw_scope(ref_shader se, std::function<void()> bind, bool objective = false); // pip render the ocular or physical objective lens
 	void svp_objective_hud_prepare(bool svp_follows); // pip validate one native objective weapon draw
 	void svp_objective_hud_report(); // pip report the native objective draw
