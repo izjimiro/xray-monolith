@@ -1021,17 +1021,6 @@ void CRenderTarget::phase_combine()
 		tm_end(svp_stats::SEC_C_TAA);
 	}
 
-	// pip clear the scope capture maps at the main-pass tail after every consumer (lens composite,
-	// nvg split, taa mask stamp), unconditional of the taa path, frame-start clear covers staleness
-	if (this == RImplementation.TargetMain)
-	{
-		RImplementation.GMBase.RGraph.mapScopeHUDSorted.clear();
-		RImplementation.GMBase.RGraph.mapScopeHUDObjective.clear();
-		RImplementation.GMBase.RGraph.mapPhysicalScopeGlass.clear();
-		RImplementation.GMBase.RGraph.mapReflexHUDSorted.clear();
-		RImplementation.GMBase.RGraph.mapScopeHUDOverlay.clear();
-	}
-
 	if (ssfx_PrevPos_Requiered && !postAfterUpscale)
 	{
 		svp_copy_begin(SVP_CP_HIST, rt_copy_bytes(rt_ssfx_prevPos));
@@ -1200,6 +1189,17 @@ void CRenderTarget::phase_combine()
 		tm_beg(svp_stats::SEC_C_COMBINE2);
 		phase_pp();
 		tm_end(svp_stats::SEC_C_COMBINE2);
+	}
+
+	// pip clear the scope capture maps at the main-pass tail after every consumer (lens composite,
+	// nvg split - after DLSS inside phase_pp, taa mask stamp), frame-start clear covers staleness
+	if (this == RImplementation.TargetMain)
+	{
+		RImplementation.GMBase.RGraph.mapScopeHUDSorted.clear();
+		RImplementation.GMBase.RGraph.mapScopeHUDObjective.clear();
+		RImplementation.GMBase.RGraph.mapPhysicalScopeGlass.clear();
+		RImplementation.GMBase.RGraph.mapReflexHUDSorted.clear();
+		RImplementation.GMBase.RGraph.mapScopeHUDOverlay.clear();
 	}
 
 #ifdef XR_DX12_BRIDGE

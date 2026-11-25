@@ -705,7 +705,7 @@ void CRenderTarget::phase_dlss_postprocess()
 	// These read the post chain's blur, which only its display-size twins hold.
 	const bool overlaysReadPost = postAfterUpscale && (ps_r2_nightvision > 0 || ps_r2_heatvision > 0 || scope_fake_enabled);
 	if (overlaysReadPost) dlss_post_swap();
-	if (ps_r2_nightvision > 0) phase_nightvision();
+	if (ps_r2_nightvision > 0 && !svp_nvg_pass()) phase_nightvision(); // PiP: the lens keeps its own centred tube
 	if (ps_r2_heatvision > 0) phase_heatvision();
 	if (scope_fake_enabled) phase_fakescope();
 	if (overlaysReadPost) dlss_post_restore();
