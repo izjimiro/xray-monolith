@@ -160,7 +160,8 @@ float3 scope_glass_resolve(float3 lit,float2 pixel,float3 frontTerm,float shoote
  // Debug 6 marks the glass footprint.
  if(scope_glass_deferred_control.w>5.5 && scope_glass_deferred_control.w<6.5) return float3(1,0,1);
  if(scope_glass_deferred_control.y<.5) return lit;
- float4 ocular=scope_reference_ocular.Load(int3(int2(pixel),0));
+ // The image is display-sized; the combine runs at the upscaler's render size.
+ float4 ocular=scope_reference_ocular.SampleLevel(smp_rtlinear,pixel*screen_res.zw,0);
  float3 opticalLinear=SRGBToLinear(pow(max(ocular.rgb,0),1/scope_glass_deferred_control.z));
  // The optical image already carries pupil attenuation; its alpha replaces the reflection
  // where the pupil is clear.
