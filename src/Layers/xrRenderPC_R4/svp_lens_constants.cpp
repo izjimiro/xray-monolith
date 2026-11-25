@@ -571,7 +571,10 @@ void svp_bind_lens_constants()
 		else
 			ed.sub(vp.eyepiece.m_W.c, Device.vCameraPosition);
 		const float dist = _max(ed.magnitude(), 0.02f);
-		float kg = 2.f * Device.m_SecondViewport.eyepiece.radius / dist;
+		// the lens radius in the scale the capture was fitted with (svp_camera.cpp)
+		extern float g_svp_fit_lens_scale;
+		const float R = Device.m_SecondViewport.eyepiece.radius * g_svp_fit_lens_scale;
+		float kg = 2.f * R / dist;
 		clamp(kg, 0.02f, 3.f);
 		// y = true-scale parallax, the real reticle shift is ~0.15 mrad at full eye deflection
 		extern float g_pip_scope_ratio;
@@ -588,11 +591,10 @@ void svp_bind_lens_constants()
 		const float axial_distance = _max(ed.dotproduct(Device.vCameraDirection), 0.02f);
 		if (ps_r__svp_reticle_fit)
 		{
-			const float R = Device.m_SecondViewport.eyepiece.radius;
 			zslope = 2.f * R / sqrtf(R * R + axial_distance * axial_distance);
 			clamp(zslope, 0.02f, 3.f);
 		}
-		svp_log_reticle_fit(zslope, kg, Device.m_SecondViewport.eyepiece.radius, axial_distance);
+		svp_log_reticle_fit(zslope, kg, R, axial_distance);
 		RCache.set_c("svp_optics", kg, par, zslope, _max(g_pip_scope_ratio, 1.f));
 	}
 	// pip scope-local exposure, x = 0 off else 2^bias

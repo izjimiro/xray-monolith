@@ -8,6 +8,10 @@
 #include "svp_reference_capture_fit.h"
 #include "svp_reference_entrance_policy.h"
 
+// the lens scale this frame's capture was fitted with (a MAS scope's model scale under Reference, else 1),
+// the reticle geometry (svp_lens_constants.cpp) takes the same lens radius so the two stay in scale
+float g_svp_fit_lens_scale = 1.f;
+
 static bool svp_rigid_camera_basis(Fmatrix& camera, const Fmatrix& main_eye, const Fvector& eyepiece, const Fvector& objective,
 	const char*& forward_lane, const char*& basis_lane, bool& flipped)
 {
@@ -166,6 +170,8 @@ bool svpCamera()
 	const bool analytic_ok = params.eyepiece.radius > EPS && lens_depth > EPS && _valid(ndc_height) && ndc_height > 1e-4f;
 	const float ratio_analytic = analytic_ok ? (2.f / ndc_height) : 0.f;
 	float ratio_magnification = 1.f;
+	const float lens_scale = SvpReferenceCapture::LensScale(eyepieceX);
+	g_svp_fit_lens_scale = (referenceEffects && lens_scale > 0.f) ? lens_scale : 1.f;
 
 	// the magnification of the scope (1X 4X etc)
 	float scope_magnification = fov_aim / deg2rad(svp_fov);
@@ -193,7 +199,8 @@ bool svpCamera()
 		// frame's lens depth and final HUD projection (including Reference clip scale), not
 		// a settled-ADS size carried across an animated raise, lean or action.
 		const bool fresh_lens = params.svp_lens_frame == Device.dwFrame && params.svp_lens_root;
-		ratio_magnification = SvpReferenceCapture::CurrentFit(params.eyepiece.radius, lens_depth, mm.mProjectHud._22, fresh_lens);
+		ratio_magnification = SvpReferenceCapture::CurrentFit(params.eyepiece.radius * g_svp_fit_lens_scale, lens_depth,
+			mm.mProjectHud._22, fresh_lens);
 	}
 	else
 	{

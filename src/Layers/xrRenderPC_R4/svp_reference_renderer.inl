@@ -190,10 +190,14 @@ void CRenderTarget::scope_reference_refresh()
         const auto& vp = Device.m_SecondViewport;
         const auto& ocular = vp.eyepiece;
         Fvector anchor;
+        // the axes without a MAS scope's model scale (a sheared basis stays non-orthogonal and fails)
+        Fvector right = ocular.m_W.i, up = ocular.m_W.j, forward = ocular.m_W.k;
+        right.normalize_safe();
+        up.normalize_safe();
+        forward.normalize_safe();
         p.imageAnchorQualified = SvpReferenceAnchor::FreshOcular(vp.svp_lens_frame, Device.dwFrame,
                 vp.svp_lens_root != nullptr, vp.svp_lens_visual != nullptr)
-            && SvpReferenceAnchor::Resolve(p.weaponEyeWorld, ocular.m_W.c,
-                ocular.m_W.i, ocular.m_W.j, ocular.m_W.k, ocular.radius, anchor);
+            && SvpReferenceAnchor::Resolve(p.weaponEyeWorld, ocular.m_W.c, right, up, forward, ocular.radius, anchor);
         if (p.imageAnchorQualified) p.ocularBaselineEye = anchor;
     }
     const auto create = [](ref_texture& material, const char* name) {

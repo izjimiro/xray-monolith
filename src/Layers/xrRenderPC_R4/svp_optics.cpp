@@ -8,6 +8,7 @@
 #include "../../xrEngine/environment.h"
 #include "../../xrEngine/xr_efflensflare.h"
 #include "../../xrEngine/svp_gameplay_cvars.h"
+#include "svp_reference_capture_fit.h"
 #if defined(USE_DX11)
 #include "../../../gamedata/shaders/r3/scope_defines.h"
 #include "svp_shader_probe.h"
@@ -68,13 +69,10 @@ bool CRenderTarget::phase_scope_reference_composite(
 	const ref_rt& destination, ID3DDepthStencilView* depth, const Fvector4 (&constants)[SvpReferenceOpticsFrame::ConstantCount])
 {
 	const auto& ocular = Device.m_SecondViewport.eyepiece;
-	if (!(ocular.radius > EPS))
-		return false;
-	// The shader scales lengths by the radius alone, which holds for a rigid lens transform only.
-	const auto& lensBasis = ocular.m_W;
-	if (_abs(lensBasis.i.square_magnitude() - 1.f) > 0.001f || _abs(lensBasis.j.square_magnitude() - 1.f) > 0.001f ||
-		_abs(lensBasis.k.square_magnitude() - 1.f) > 0.001f || _abs(lensBasis.i.dotproduct(lensBasis.j)) > 0.001f ||
-		_abs(lensBasis.i.dotproduct(lensBasis.k)) > 0.001f || _abs(lensBasis.j.dotproduct(lensBasis.k)) > 0.001f)
+	// The shader scales world lengths by the radius alone: a rigid lens, or one under a uniform model
+	// scale (a MAS scope on a weapon with attach_scale) taken into the world radius.
+	const float lensScale = SvpReferenceCapture::LensScale(ocular.m_W);
+	if (!(ocular.radius > EPS) || !(lensScale > 0.f))
 		return false;
 
 	static const char* names[] = { "$user$svp_reference_capture", "$user$svp_reference_translucent", "$user$svp_reference_opaque" };
@@ -108,7 +106,7 @@ bool CRenderTarget::phase_scope_reference_composite(
 			right.normalize_safe();
 			up.normalize_safe();
 			forward.normalize_safe();
-			RCache.set_c("reference_source_geometry", p.sourceRadius / ocular.radius, 0.f, 0.f, 0.f);
+			RCache.set_c("reference_source_geometry", p.sourceRadius / (ocular.radius * lensScale), 0.f, 0.f, 0.f);
 			RCache.set_c("reference_source_baseline", p.sourceBaselineEye.x, p.sourceBaselineEye.y, p.sourceBaselineEye.z, 0.f);
 			RCache.set_c("reference_ocular_baseline", p.ocularBaselineEye.x, p.ocularBaselineEye.y, p.ocularBaselineEye.z, 0.f);
 			Fvector eyeDelta, eye;
