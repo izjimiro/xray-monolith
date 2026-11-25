@@ -555,8 +555,8 @@ void CRenderTarget::phase_combine()
 	tm_end(svp_stats::SEC_C_COMBINE1);
 
 	// Without deferred glass the optical image is drawn here, before the forward
-	// glass and the scene post-process.
-	if (this == RImplementation.TargetMain && !scope_glass_deferred_current())
+	// glass and the scene post-process; after reconstruction, in the lens pass below.
+	if (this == RImplementation.TargetMain && !scope_glass_deferred_current() && !DlssPostAfterUpscale())
 		phase_scope_reference_ocular();
 
 	//Copy previous rt
@@ -905,6 +905,9 @@ void CRenderTarget::phase_combine()
 			(rt_Generic_temp->dwWidth != rt_Generic_0->dwWidth || rt_Generic_temp->fmt != rt_Generic_0->fmt);
 		const bool lensHeat = postAfterUpscale && rt_Heat->dwWidth != rt_Position->dwWidth;
 		dlss_lens_scratch_swap(lensPosition, lensScene, lensHeat);
+		// the display-size image needs the display-size depth, which exists only from here on
+		if (postAfterUpscale && !scope_glass_deferred_current())
+			phase_scope_reference_ocular();
 		phase_3DSSReticle(false); // PiP reticle/depth overlays and legacy 3DSS
 		dlss_lens_scratch_swap(lensPosition, lensScene, lensHeat);
 		svp_stats::cpu_end(svp_stats::CPU_LENS);
