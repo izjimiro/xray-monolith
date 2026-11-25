@@ -2242,6 +2242,19 @@ bool CWeapon::IsScopeAttached() const
 		ALife::eAddonPermanent == m_eScopeStatus;
 }
 
+// the attached scope's own HUD model (MAS, attach_place_idx 2), out of game_object:set_bone_visible's reach
+bool CWeapon::SetScopeBoneVisible(LPCSTR bone, bool visible)
+{
+	attachable_hud_item* hud = m_scopeItem ? m_scopeItem->HudItemData() : nullptr;
+	IKinematics* model = hud ? hud->m_model : nullptr;
+	const u16 id = model && bone ? model->LL_BoneID(bone) : BI_NONE;
+	if (id == BI_NONE)
+		return false;
+	if (!!model->LL_GetBoneVisible(id) != visible)
+		model->LL_SetBoneVisible(id, visible, TRUE);
+	return true;
+}
+
 bool CWeapon::IsSilencerAttached() const
 {
 	return (ALife::eAddonAttachable == m_eSilencerStatus &&

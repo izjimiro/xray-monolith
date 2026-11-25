@@ -659,6 +659,7 @@ public:
 	LPCSTR GetGrenadeLauncherNameScript() const { return *GetGrenadeLauncherName(); }
 	LPCSTR GetSilencerNameScript() const { return *GetSilencerName(); }
 	LPCSTR GetScopeNameScript() const { return *GetScopeName(); }
+	bool SetScopeBoneVisible(LPCSTR bone, bool visible);
 	float GetFireDispersionScript() const { return fireDispersionBase; }
 	float RPMScript() const { return fOneShotTime; }
 	float RealRPMScript() const { return 60.0f / fOneShotTime; } // Return actual RPM like in configs

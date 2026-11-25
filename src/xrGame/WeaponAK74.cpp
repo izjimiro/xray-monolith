@@ -54,6 +54,7 @@ void CWeaponAK74::script_register	(lua_State *L)
 			.def("IsScopeAttached", &CWeapon::IsScopeAttached)
 			.def("ScopeAttachable", &CWeapon::ScopeAttachable)
 			.def("GetScopeName", &CWeapon::GetScopeNameScript)
+			.def("SetScopeBoneVisible", &CWeapon::SetScopeBoneVisible)
 			
 			.def("IsSilencerAttached", &CWeapon::IsSilencerAttached)
 			.def("SilencerAttachable", &CWeapon::SilencerAttachable)
