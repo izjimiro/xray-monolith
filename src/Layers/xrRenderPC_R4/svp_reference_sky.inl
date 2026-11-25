@@ -170,10 +170,13 @@ bool CRenderTarget::phase_scope_reference_sky()
     if (capture)
     {
         scope_reference_sky_draw(true);
-        // the sun or moon disc follows this hook in the sky draw, here it takes the sky's transfer too
-        u_setrt(rt_scope_reference_raw, nullptr, nullptr, nullptr);
+        // the sun or moon disc and the clouds follow this hook in the sky draw: drawn here as there, over the
+        // scene depth (fogged geometry reads this sky), they take the sky's transfer too
+        u_setrt(rt_scope_reference_raw, nullptr, nullptr, baseZB);
         set_viewport_size(HW.pContext, float(Width), float(Height));
-        g_pGamePersistent->Environment().eff_LensFlare->Render(TRUE, FALSE, FALSE);
+        auto& env = g_pGamePersistent->Environment();
+        env.eff_LensFlare->Render(TRUE, FALSE, FALSE);
+        env.RenderClouds();
         svp_reference_unbind();
         if (!t_scope_reference_main_meter)
             t_scope_reference_main_meter.create("$user$svp_reference_main_meter");

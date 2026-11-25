@@ -5,6 +5,7 @@ Texture2D scope_reference_sky_display;
 float4 scope_reference_transfer; // x: tone map input gamma
 float4 main(float4 position : SV_Position) : SV_Target0
 {
-    float3 display = scope_reference_sky_display.Load(int3(position.xy, 0)).rgb;
-    return float4(scope_reference_scene_tone_inverse(display, scope_reference_transfer.x, scope_reference_meter()), 1);
+    // the screen shows at most white (the sun disc adds past it); past the curve's white the search leaves FP16
+    float3 display = min(scope_reference_sky_display.Load(int3(position.xy, 0)).rgb, 1);
+    return float4(min(scope_reference_scene_tone_inverse(display, scope_reference_transfer.x, scope_reference_meter()), 65504), 1);
 }
