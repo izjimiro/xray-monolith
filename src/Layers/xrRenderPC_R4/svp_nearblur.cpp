@@ -17,32 +17,33 @@ static float svp_objective_mm()
 }
 
 // pip near-field defocus pass, true when it dispatched else the caller copies
-bool CRenderTarget::svp_nearblur_pass()
+bool CRenderTarget::svp_nearblur_pass(ID3DTexture2D* source, ID3DTexture2D* mips, ref_texture& mips_tex,
+	ID3DRenderTargetView* destination)
 {
 	// pip near-field defocus replaces the plain copy in the realism mode, an uncoupled display
 	// and a live thermal sensor keep full depth of field so they take the plain copy
 	if (ps_r__svp_near_blur > 0.01f && scope_svp_enabled >= 2 && svp_optic_eye_coupled()
 		&& !svp_thermal_overlay_active()
-		&& rt_Position && rt_secondVP->pRT)
+		&& rt_Position && destination)
 	{
 		EnsureScopeShaders();
 		if (s_svp_nearblur)
 		{
 			// pip prefilter the svp color into a mip chain so each sparse ring area-averages its cell
-			if (m_svp_nb_mip_surf)
+			if (mips)
 			{
-				HW.pContext->CopySubresourceRegion(m_svp_nb_mip_surf, 0, 0, 0, 0, rt_Generic_0->pSurface, 0, nullptr);
-				HW.pContext->GenerateMips(m_svp_nb_mip_tex->get_SRView());
+				HW.pContext->CopySubresourceRegion(mips, 0, 0, 0, 0, source, 0, nullptr);
+				HW.pContext->GenerateMips(mips_tex->get_SRView());
 			}
 			{
 				ref_texture t; t.create("$user$svp_nearblur_src");
-				t->surface_set(m_svp_nb_mip_surf ? m_svp_nb_mip_surf : rt_Generic_0->pSurface);
+				t->surface_set(mips ? mips : source);
 			}
 			{
 				ref_texture t; t.create("$user$svp_nearblur_pos");
 				t->surface_set(rt_Position->pSurface);
 			}
-			u_setrt(Width, Height, rt_secondVP->pRT, nullptr, nullptr, nullptr);
+			u_setrt(Width, Height, destination, nullptr, nullptr, nullptr);
 			const float w = float(Width), h = float(Height);
 			u32 Offset = 0;
 			const float d_Z = EPS_S, d_W = 1.f;
@@ -82,9 +83,9 @@ bool CRenderTarget::svp_nearblur_pass()
 				{
 					s_nb_ms = Device.dwTimeGlobal;
 					const float g_dbg = powf(_max(maxR, 1.f), 1.f / 150.f) - 1.f; // 150 mirrors the shader NB_TAP_BUDGET
-					u32 mips = 0;
-					if (m_svp_nb_mip_surf) { D3D_TEXTURE2D_DESC d; m_svp_nb_mip_surf->GetDesc(&d); mips = d.MipLevels; }
-					PipMsg("[SVP-NB] maxR=%.0fpx g=%.4f lodk=%.4f scatter=%d mips=%u", maxR, g_dbg, g_dbg, ps_r__svp_nearblur_scatter, mips);
+					u32 levels = 0;
+					if (mips) { D3D_TEXTURE2D_DESC d; mips->GetDesc(&d); levels = d.MipLevels; }
+					PipMsg("[SVP-NB] maxR=%.0fpx g=%.4f lodk=%.4f scatter=%d mips=%u", maxR, g_dbg, g_dbg, ps_r__svp_nearblur_scatter, levels);
 				}
 			}
 			RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 3, 0, 1);

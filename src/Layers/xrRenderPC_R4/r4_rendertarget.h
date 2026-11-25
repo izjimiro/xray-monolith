@@ -145,6 +145,8 @@ public:
 	ref_rt rt_secondVP;	// 32bit		(r,g,b,a) --//#SM+#-- +SecondVP+
 	ID3DTexture2D* m_svp_nb_mip_surf = nullptr; // pip mip-prefiltered svp color for near-blur
 	ref_texture m_svp_nb_mip_tex; // pip holds the all-mip srv for GenerateMips
+	ID3DTexture2D* m_svp_nb_raw_mip_surf = nullptr; // the same for the FP16 Reference raw image (held by its texture)
+	ref_texture m_svp_nb_raw_mip_tex;
 
 
 	ref_rt rt_fakescope;	// crookr fakescope
@@ -645,7 +647,8 @@ public:
     bool phase_scope_reference_ocular();
     bool phase_scope_reference_composite(const ref_rt& destination,ID3DDepthStencilView* depth,
         const Fvector4 (&constants)[SvpReferenceOpticsFrame::ConstantCount]);
-	bool svp_nearblur_pass(); // pip near-field defocus dispatch, true when it ran else the caller copies
+	// pip near-field defocus of source (via its mipped copy) into destination, true when it ran else the caller copies
+	bool svp_nearblur_pass(ID3DTexture2D* source, ID3DTexture2D* mips, ref_texture& mips_tex, ID3DRenderTargetView* destination);
 	void draw_scope(ref_shader se, std::function<void()> bind, bool objective = false); // pip render the ocular or physical objective lens
 	void svp_objective_hud_prepare(bool svp_follows); // pip validate one native objective weapon draw
 	void svp_objective_hud_report(); // pip report the native objective draw

@@ -332,7 +332,7 @@ void CRenderTarget::phase_svp_capture()
 		return;
 	}
 	// pip near-field defocus, thermal falls through to the plain copy
-	if (svp_nearblur_pass())
+	if (svp_nearblur_pass(rt_Generic_0->pSurface, m_svp_nb_mip_surf, m_svp_nb_mip_tex, rt_secondVP->pRT))
 		return;
 	// rt_secondVP alpha is garbage (nothing writes it) and must stay UNREAD, the scope shaders sample
 	// .rgb only and the lens composite blends srcalpha with its OWN forced o.a, never the source alpha

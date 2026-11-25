@@ -970,6 +970,11 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 			R_CHK(HW.pDevice->CreateTexture2D(&md, 0, &m_svp_nb_mip_surf));
 			m_svp_nb_mip_tex = dxRenderDeviceRender::Instance().Resources->_CreateTexture("$user$svp_nb_mip");
 			m_svp_nb_mip_tex->surface_set(m_svp_nb_mip_surf);
+			md.Format = DXGI_FORMAT_R16G16B16A16_FLOAT; // the same for the FP16 Reference raw image
+			R_CHK(HW.pDevice->CreateTexture2D(&md, 0, &m_svp_nb_raw_mip_surf));
+			m_svp_nb_raw_mip_tex = dxRenderDeviceRender::Instance().Resources->_CreateTexture("$user$svp_nb_raw_mip");
+			m_svp_nb_raw_mip_tex->surface_set(m_svp_nb_raw_mip_surf);
+			m_svp_nb_raw_mip_surf->Release(); // the texture holds it
 		}
 
 		if (ps_r4_atlas)
