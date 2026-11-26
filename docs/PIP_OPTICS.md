@@ -468,10 +468,9 @@ Use the `typed_table` builder in
 [`zzz_extra_scope_features.script`](../gamedata/scripts/zzz_extra_scope_features.script) as the
 canonical field list and the validator in
 [`svp_optic_config_script.cpp`](../src/xrGame/svp_optic_config_script.cpp) as the authoritative
-types and ranges. A complete read-only consumer demonstrating the handshake, capability probing,
-schema introspection, fragment validation, and provenance reads ships as
-[`pip_optic_api_example.script`](../gamedata/scripts/pip_optic_api_example.script); it is inert on
-engines without the API and silent unless `r__svp_diag` is enabled.
+types and ranges. A read-only consumer example (`pip_optic_api_example.script`, handshake, capability
+probing, schema introspection, fragment validation, provenance reads) shipped up to bodycam-mt-dlss
+97f1d576 and is in that commit's tree.
 
 ## Version-safe extension rules
 

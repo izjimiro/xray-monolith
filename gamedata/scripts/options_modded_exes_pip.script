@@ -35,6 +35,18 @@ local _full = page {
 		max = 200,
 		step = 5,
 	},
+	-- zoom of every scope, from the shader scopes page (removed: PiP scopes only)
+	list_bool { id = "interpolation_based_scope_zoom", def = "0" },
+	check {
+		id = "new_zoom_enable",
+		def = false
+	},
+	list_bool { id = "new_zoom_delta_algorithm", def = "0" },
+	track {
+		id = "zoom_step_count",
+		def = 3,
+		step = 1,
+	},
 }
 
 -- expose the controls only on a matched PiP engine; otherwise an empty page so the menu never reads the missing cvars

@@ -259,16 +259,16 @@
 	<string id="ui_mm_modded_exes_visual_3d_scopes_sds_zoom_enable">
 		<text>Коррекция зума (sds_zoom_enable)</text>
 	</string>
-	<string id="ui_mm_modded_exes_visual_3d_scopes_new_zoom_enable">
+	<string id="ui_mm_modded_exes_visual_pip_new_zoom_enable">
 		<text>Плавный зум (new_zoom_enable)</text>
 	</string>
-	<string id="ui_mm_modded_exes_visual_3d_scopes_new_zoom_delta_algorithm">
+	<string id="ui_mm_modded_exes_visual_pip_new_zoom_delta_algorithm">
 		<text>Новый алгоритм зума (new_zoom_delta_algorithm)</text>
 	</string>
-	<string id="ui_mm_modded_exes_visual_3d_scopes_new_zoom_delta_algorithm_desc">
+	<string id="ui_mm_modded_exes_visual_pip_new_zoom_delta_algorithm_desc">
 		<text>Меняет алгоритм изменения зума т.о. чтобы было одинаковое визуальное увеличение</text>
 	</string>
-	<string id="ui_mm_modded_exes_visual_3d_scopes_zoom_step_count">
+	<string id="ui_mm_modded_exes_visual_pip_zoom_step_count">
 		<text>Кол-во стадий зума (zoom_step_count)</text>
 	</string>
 	<string id="ui_mm_modded_exes_visual_3d_scopes_scope_blur_inner">
@@ -1550,10 +1550,10 @@
 	<string id="ui_mm_modded_exes_visual_ui_hud_r4_atlas_msaa_desc">
 		<text>MSAA для атласа трёхмерных иконок инвентаря. По умолчанию: 4x. Требуется перезапуск.</text>
 	</string>
-	<string id="ui_mm_modded_exes_visual_3d_scopes_interpolation_based_scope_zoom">
+	<string id="ui_mm_modded_exes_visual_pip_interpolation_based_scope_zoom">
 		<text>Определять переход прицеливания по интерполяции модели (interpolation_based_scope_zoom)</text>
 	</string>
-	<string id="ui_mm_modded_exes_visual_3d_scopes_interpolation_based_scope_zoom_desc">
+	<string id="ui_mm_modded_exes_visual_pip_interpolation_based_scope_zoom_desc">
 		<text>Определяет завершение перехода в прицеливание по интерполированному положению интерфейсной модели. По умолчанию выключено.</text>
 	</string>
 	<string id="ui_mm_modded_exes_visual_3d_scopes_reflex_param_x">

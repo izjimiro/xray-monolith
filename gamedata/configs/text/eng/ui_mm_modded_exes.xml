@@ -259,16 +259,16 @@
 	<string id="ui_mm_modded_exes_visual_3d_scopes_sds_zoom_enable">
 		<text>Correct Zoom Factor (sds_zoom_enable)</text>
 	</string>
-	<string id="ui_mm_modded_exes_visual_3d_scopes_new_zoom_enable">
+	<string id="ui_mm_modded_exes_visual_pip_new_zoom_enable">
 		<text>Smooth Zoom Change (new_zoom_enable)</text>
 	</string>
-	<string id="ui_mm_modded_exes_visual_3d_scopes_new_zoom_delta_algorithm">
+	<string id="ui_mm_modded_exes_visual_pip_new_zoom_delta_algorithm">
 		<text>New Zoom Delta Algorithm (new_zoom_delta_algorithm)</text>
 	</string>
-	<string id="ui_mm_modded_exes_visual_3d_scopes_new_zoom_delta_algorithm_desc">
+	<string id="ui_mm_modded_exes_visual_pip_new_zoom_delta_algorithm_desc">
 		<text>Changes zoom levels of a scope to have same Visual zoom change between levels</text>
 	</string>
-	<string id="ui_mm_modded_exes_visual_3d_scopes_zoom_step_count">
+	<string id="ui_mm_modded_exes_visual_pip_zoom_step_count">
 		<text>Smooth Zoom Step Count (zoom_step_count)</text>
 	</string>
 	<string id="ui_mm_modded_exes_visual_3d_scopes_scope_blur_inner">
@@ -1586,10 +1586,10 @@
 	<string id="ui_mm_modded_exes_visual_ui_hud_r4_atlas_msaa_desc">
 		<text>MSAA for the 3D inventory icon atlas. Default: 4x. Requires a restart.</text>
 	</string>
-	<string id="ui_mm_modded_exes_visual_3d_scopes_interpolation_based_scope_zoom">
+	<string id="ui_mm_modded_exes_visual_pip_interpolation_based_scope_zoom">
 		<text>Use HUD interpolation for zoom transitions (interpolation_based_scope_zoom)</text>
 	</string>
-	<string id="ui_mm_modded_exes_visual_3d_scopes_interpolation_based_scope_zoom_desc">
+	<string id="ui_mm_modded_exes_visual_pip_interpolation_based_scope_zoom_desc">
 		<text>Determines completion of zoom transitions from the interpolated HUD position. Off by default.</text>
 	</string>
 	<string id="ui_mm_modded_exes_visual_3d_scopes_reflex_param_x">
