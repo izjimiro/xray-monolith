@@ -820,12 +820,17 @@ RWTexture2D<float2> outputMotion : register(u1);
         BRIDGE_CHECK(m_device11->CreateShaderResourceView(m_depthCopy ? m_depthCopy.Get() : depth, &view, &m_depthSRV));
         m_depthSource = depth;
     }
-    if (m_depthCopy) m_context11->CopyResource(m_depthCopy.Get(), depth);
+    if (m_depthCopy && depthOut) m_context11->CopyResource(m_depthCopy.Get(), depth);
+    // Up to two motion sources a frame (the scene's, then ReplaceMotion's): a view kept for each.
     if (motion && m_motionSource.Get() != motion)
     {
-        m_motionSRV.Reset(); m_motionSource.Reset();
-        BRIDGE_CHECK(m_device11->CreateShaderResourceView(motion, nullptr, &m_motionSRV));
-        m_motionSource = motion;
+        m_motionSRV.Swap(m_motionSRV2); m_motionSource.Swap(m_motionSource2);
+        if (m_motionSource.Get() != motion)
+        {
+            m_motionSRV.Reset(); m_motionSource.Reset();
+            BRIDGE_CHECK(m_device11->CreateShaderResourceView(motion, nullptr, &m_motionSRV));
+            m_motionSource = motion;
+        }
     }
     // Without motion (depth only), the unbound UAV ignores the shader's motion writes.
     ID3D11ShaderResourceView* srvs[]{m_depthSRV.Get(), motion ? m_motionSRV.Get() : nullptr};
@@ -1591,6 +1596,8 @@ void D3D12PresentBridge::Shutdown()
     m_captureState.Reset();
     m_motionSRV.Reset();
     m_motionSource.Reset();
+    m_motionSRV2.Reset();
+    m_motionSource2.Reset();
     m_depthCopy.Reset();
     m_diagnosticShader.Reset();
     m_diagnosticBuffer.Reset();

@@ -12,8 +12,9 @@ extern int ps_r__svp_fg_lens_mv;
 bool svp_fg_lens_motion_wanted()
 {
 #ifdef XR_DX12_BRIDGE
+	// frame generation also needs an upscaler (fg::Eligible); without one the pass is wasted
 	auto* bridge = HW.PresentationBridge();
-	return ps_r__svp_fg_lens_mv && bridge && bridge->NeedsFGInputs();
+	return ps_r__svp_fg_lens_mv && dlss::Configured() && bridge && bridge->NeedsFGInputs();
 #else
 	return false;
 #endif
@@ -37,7 +38,8 @@ void CRenderTarget::svp_fg_lens_motion()
 	if (!rt_fg_lens_motion || !rt_fg_lens_motion->pRT || !s_svp_fg_lens_motion)
 		return;
 
-	// the 2D HUD draws next onto the target combine left bound
+	// the 2D HUD draws next onto the target combine left bound, and the next frame's LOD reads its size
+	const u32 target_w = dwWidth, target_h = dwHeight;
 	ID3DRenderTargetView* targets[3]{RCache.get_RT(0), RCache.get_RT(1), RCache.get_RT(2)};
 	ID3DDepthStencilView* depth = RCache.get_ZB();
 	D3D11_VIEWPORT viewports[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
@@ -68,6 +70,8 @@ void CRenderTarget::svp_fg_lens_motion()
 		RCache.set_RT(targets[i], i);
 	RCache.set_ZB(depth);
 	HW.pContext->RSSetViewports(viewport_count, viewports);
+	dwWidth = target_w;
+	dwHeight = target_h;
 	fg::CaptureLensMotion(rt_fg_lens_motion->pSurface);
 }
 #endif

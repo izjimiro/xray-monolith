@@ -225,8 +225,8 @@ private:
     ComPtr<ID3D11ShaderResourceView> m_depthSRV;
     ComPtr<ID3D11ComputeShader> m_depthShader, m_diagnosticShader;
     ComPtr<ID3DDeviceContextState> m_captureState;
-    ComPtr<ID3D11ShaderResourceView> m_motionSRV;
-    ComPtr<ID3D11Texture2D> m_motionSource, m_depthCopy;
+    ComPtr<ID3D11ShaderResourceView> m_motionSRV, m_motionSRV2;
+    ComPtr<ID3D11Texture2D> m_motionSource, m_motionSource2, m_depthCopy;
     ComPtr<ID3D11Buffer> m_diagnosticBuffer, m_diagnosticReadback;
     ComPtr<ID3D11UnorderedAccessView> m_diagnosticUAV;
     bool m_diagnosticPending{}, m_fgFailed{};

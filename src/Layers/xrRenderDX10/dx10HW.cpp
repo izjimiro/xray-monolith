@@ -1587,7 +1587,7 @@ void CHW::CreatePresentationBridge()
     if (!m_presentBridge)
     {
         xrLogger::FlushLog();
-        CHECK_OR_EXIT(false, "DX12 presentation could not start. See the game log for details or use AnomalyDX11.exe.");
+        CHECK_OR_EXIT(false, "DX12 presentation could not start. See the game log for details or use AnomalyDX11AVX.exe.");
         return;
     }
     m_pSwapChain = m_presentBridge->GetSwapChain();
