@@ -343,6 +343,11 @@ void SimulatorStates::UpdateDesc(D3D_BLEND_DESC& desc) const
 			}
 		}
 	}
+	// D3D11 takes the write masks of targets 1..3 only when the targets blend independently;
+	// their blend settings are the same as target 0's here, so only the masks differ
+	for (int i = 1; i < 4; ++i)
+		if (desc.RenderTarget[i].RenderTargetWriteMask != desc.RenderTarget[0].RenderTargetWriteMask)
+			desc.IndependentBlendEnable = TRUE;
 }
 #else
 void SimulatorStates::UpdateDesc(D3D_BLEND_DESC& desc) const

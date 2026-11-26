@@ -774,15 +774,14 @@ void CDSGraphManager::r_dsgraph_extract_dlss_effects()
 	hold(RGraph.mapCustomFOVSorted.Sorted, isEffect);
 }
 
-void CDSGraphManager::r_dsgraph_render_dlss_effects(bool keep)
+void CDSGraphManager::r_dsgraph_render_dlss_effects(bool keep, bool hud)
 {
 	PROF_EVENT("r_dsgraph_render_dlss_effects");
 	r_dsgraph_render_graph_sorted(RGraph.mapDlssEffects, !keep);
-	// pip the scope pass draws the HUD ones with the sorted HUD
-	if (keep || RGraph.mapDlssHudEffects.empty()) return;
+	if (!hud || RGraph.mapDlssHudEffects.empty()) return;
 	CHudInitializer initializer(true);
 	RImplementation.rmNear();
-	r_dsgraph_render_graph_sorted(RGraph.mapDlssHudEffects, true);
+	r_dsgraph_render_graph_sorted(RGraph.mapDlssHudEffects, !keep);
 	RImplementation.rmNormal();
 }
 

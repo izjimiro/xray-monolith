@@ -43,7 +43,7 @@ void CRenderTarget::scope_reference_capture_particles()
     auto& graph = RImplementation.GMBase;
     graph.r_dsgraph_render_static(1, false);
     graph.r_dsgraph_render_dynamic(1, false);
-    graph.r_dsgraph_render_dlss_effects(true); // held for after the main view's upscaler
+    graph.r_dsgraph_render_dlss_effects(true, false); // held for after the main view's upscaler
     graph.r_dsgraph_render_sorted(false);
     g_svp_reference_particle_replay = false;
     RCache.set_ColorWriteEnable();

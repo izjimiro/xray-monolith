@@ -140,8 +140,9 @@ public:
 	void r_dsgraph_extract_native_ui();
 	void r_dsgraph_render_native_ui(bool renderHudUi);
 	void r_dsgraph_extract_dlss_effects();
-	// keep: the scope pass (PiP), which leaves them for the main view
-	void r_dsgraph_render_dlss_effects(bool keep = false);
+	// keep: leave the lists for the pass after the main view's upscaler; hud: the HUD ones too
+	// (the scope pass, PiP, draws its HUD ones with the sorted HUD)
+	void r_dsgraph_render_dlss_effects(bool keep = false, bool hud = true);
 	// Laser beams, or reflex sight reticles, drawn again: their lists are kept.
 	void r_dsgraph_render_fg_mask(bool reticles);
 	void r_dsgraph_extract_fg_reticles();

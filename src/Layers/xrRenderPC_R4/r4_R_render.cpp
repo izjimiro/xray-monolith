@@ -871,7 +871,20 @@ void CRender::render_forward()
 		// pip the graph is shared: the scope pass draws the world ones and keeps them for the main view
 		const bool svp_effects = Device.true_pip_on && Device.m_SecondViewport.m_render_pass_is_svp;
 		if (svp_effects || !Target->DlssEffectsAfterUpscale())
-			GMBase.r_dsgraph_render_dlss_effects(svp_effects);
+			GMBase.r_dsgraph_render_dlss_effects(svp_effects, !svp_effects);
+		else if ((ps_r2_heatvision > 0 || ps_r2_nightvision > 0 || !GMBase.RGraph.mapScopeHUDSorted.empty())
+			&& (!GMBase.RGraph.mapDlssEffects.empty() || !GMBase.RGraph.mapDlssHudEffects.empty()))
+		{
+			// held for after the upscaler, their heat stays in the scene for the thermal and night views and
+			// the scope lenses (rt_Heat, target 1 here): drawn into it alone, the lists kept for later
+			ID3DRenderTargetView* color = RCache.get_RT(0);
+			ID3DRenderTargetView* motion = RCache.get_RT(2);
+			RCache.set_RT(nullptr, 0);
+			RCache.set_RT(nullptr, 2);
+			GMBase.r_dsgraph_render_dlss_effects(true);
+			RCache.set_RT(color, 0);
+			RCache.set_RT(motion, 2);
+		}
 		GMBase.fade_render(); // faded-portals
 		GMBase.r_dsgraph_render_sorted(false); // strict-sorted geoms
 		g_pGamePersistent->Environment().RenderLast(); // rain/thunder-bolts
