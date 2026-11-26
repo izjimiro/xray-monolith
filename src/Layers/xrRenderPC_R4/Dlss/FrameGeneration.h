@@ -10,6 +10,8 @@ void EndPresent();
 void CaptureScene();
 // source: replaces the presentation surface as the HUD-less image (r_fg_hudless_test).
 void CaptureHudless(ID3D11Texture2D* source = nullptr);
+// pip the captured motion again from these render-sized vectors (the lens's image motion over the scene's)
+void CaptureLensMotion(ID3D11Texture2D* motion);
 // "runtime, FSR frame generation version, DLSS-G module versions", for test logs.
 const char* RuntimeVersions();
 void Reset();

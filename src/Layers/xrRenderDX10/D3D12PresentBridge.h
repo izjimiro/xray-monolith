@@ -84,6 +84,8 @@ public:
     // framesToGenerate: DLSS-G frames per rendered frame (1 = 2x); FSR always generates one.
     HRESULT BeginFrame(UINT frameLimitUs, bool allowGeneration, UINT framesToGenerate = 1);
     HRESULT CaptureScene(ID3D11Resource* depth, ID3D11Resource* motion, const FrameGenerationInputs& inputs);
+    // After CaptureScene in the same frame: the motion again from another render-sized source.
+    HRESULT ReplaceMotion(ID3D11Resource* motion);
     // source: an image to use instead of the presentation surface, same size and format.
     HRESULT CaptureHudless(bool valid, ID3D11Texture2D* source = nullptr);
     bool NeedsFGInputs() const;

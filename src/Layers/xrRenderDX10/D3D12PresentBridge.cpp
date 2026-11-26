@@ -785,7 +785,9 @@ RWTexture2D<float> outputDepth : register(u0);
 RWTexture2D<float2> outputMotion : register(u1);
 [numthreads(8,8,1)] void main(uint3 p : SV_DispatchThreadID)
 {
-    uint w, h; outputDepth.GetDimensions(w,h);
+    // An unbound output reports 0x0 and drops its writes: the size of whichever is bound.
+    uint w, h, mw, mh; outputDepth.GetDimensions(w,h); outputMotion.GetDimensions(mw,mh);
+    w = max(w,mw); h = max(h,mh);
     if (p.x < w && p.y < h) {
         outputDepth[p.xy] = sourceDepth.Load(int3(p.xy,0));
         outputMotion[p.xy] = sourceMotion.Load(int3(p.xy,0)).xy;
@@ -934,6 +936,22 @@ HRESULT D3D12PresentBridge::CaptureScene(ID3D11Resource* depth, ID3D11Resource* 
     ++m_statistics.sceneCaptures;
     m_statistics.inputCopyBytes += UINT64(d.Width) * d.Height * 8;
     return S_OK;
+}
+
+HRESULT D3D12PresentBridge::ReplaceMotion(ID3D11Resource* motion)
+{
+    if (!NeedsFGInputs() || !m_sceneValid || !m_depthSource) return S_OK;
+    if (!m_acquired || m_submitted) return Check(E_UNEXPECTED, "FG motion outside acquired frame");
+    if (!motion) return Check(E_INVALIDARG, "Null FG motion");
+    ComPtr<ID3D11Texture2D> motionTexture;
+    BRIDGE_CHECK(motion->QueryInterface(IID_PPV_ARGS(&motionTexture)));
+    D3D11_TEXTURE2D_DESC m{};
+    motionTexture->GetDesc(&m);
+    // A size the capture did not use keeps the captured motion.
+    if (m.Width != m_inputWidth || m.Height != m_inputHeight || m.Format != m_motionFormat) return S_OK;
+    // The captured depth source again, its output unbound: only the motion is written.
+    return ConvertDepthMotion(m_depthSource.Get(), motionTexture.Get(), nullptr, m_slots[m_currentSlot].motionUAV.Get(),
+        m_inputWidth, m_inputHeight, false);
 }
 
 HRESULT D3D12PresentBridge::CaptureDepth(ID3D11Resource* depth)

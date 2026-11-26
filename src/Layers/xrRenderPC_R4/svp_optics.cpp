@@ -94,7 +94,12 @@ bool CRenderTarget::phase_scope_reference_composite(
 	HW.pContext->RSGetViewports(&count, saved);
 	// a hybrid reflex drawn into the capture this frame needs to know where the image takes the capture
 	const auto* capture = RImplementation.TargetSVP;
-	u_setrt(destination, capture->reticle_capture_light_current() ? rt_scope_reference_capture_tc : ref_rt(), nullptr, depth);
+	// frame generation maps the lens's image motion through it as well (svp_fg_motion.cpp)
+	const bool fg_capture = svp_fg_lens_motion_wanted() && rt_scope_reference_capture_tc;
+	if (fg_capture)
+		svp_fg_capture_frame = Device.dwFrame;
+	u_setrt(destination, capture->reticle_capture_light_current() || fg_capture ? rt_scope_reference_capture_tc : ref_rt(),
+		nullptr, depth);
 	set_viewport_size(HW.pContext, float(destination->dwWidth), float(destination->dwHeight));
 	const auto callsBefore = RCache.stat.calls;
 	draw_scope(s_scope_reference_mesh,

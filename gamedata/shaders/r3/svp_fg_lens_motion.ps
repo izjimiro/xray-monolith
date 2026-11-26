@@ -1,0 +1,38 @@
+// Frame generation's motion over the PiP lens (svp_fg_motion.cpp): the scope pass's vectors at the capture
+// point each lens pixel shows (scope_reference_image.ps SV_Target1), mapped to the screen, plus the lens's own
+// motion. SSS vectors: xy current minus previous uv, z HUD, w TAA mask (3 on deferred glass with the image).
+#include "common.h"
+Texture2D s_fg_scene_motion; // the main view's, render size
+Texture2D s_fg_capture_tc; // xy the capture uv, w 1 where the image was drawn
+Texture2D s_fg_svp_motion; // the scope pass's, in capture uv
+float4 svp_fg_lens; // xy capture tc texel, z deferred glass
+
+float2 capture_step(float4 c, float2 offset, float2 uv)
+{
+	float4 a = s_fg_capture_tc.SampleLevel(smp_nofilter, uv + offset, 0);
+	float4 b = s_fg_capture_tc.SampleLevel(smp_nofilter, uv - offset, 0);
+	if (a.w > .5 && b.w > .5) return (a.xy - b.xy) * .5;
+	if (a.w > .5) return a.xy - c.xy;
+	if (b.w > .5) return c.xy - b.xy;
+	return 0;
+}
+
+float4 main(float4 pos : SV_Position) : SV_Target
+{
+	float4 motion = s_fg_scene_motion.Load(int3(pos.xy, 0));
+	float2 uv = pos.xy * screen_res.zw;
+	float4 c = s_fg_capture_tc.SampleLevel(smp_nofilter, uv, 0);
+	// deferred glass: only the glass showing the image, a hand over it keeps its own
+	if (c.w < .5 || (svp_fg_lens.z > .5 && (motion.w < 2.5 || motion.w > 3.5)))
+		return motion;
+	// capture uv per screen uv, from the neighbours the image pass also drew
+	float2 dx = capture_step(c, float2(svp_fg_lens.x, 0), uv) / svp_fg_lens.x;
+	float2 dy = capture_step(c, float2(0, svp_fg_lens.y), uv) / svp_fg_lens.y;
+	float det = dx.x * dy.y - dy.x * dx.y;
+	if (abs(det) < 1e-6)
+		return motion;
+	float2 m = s_fg_svp_motion.SampleLevel(smp_nofilter, c.xy, 0).xy;
+	float2 image = float2(dy.y * m.x - dy.x * m.y, dx.x * m.y - dx.y * m.x) / det;
+	// the lens moves with the weapon: its HUD vector where the scene has one
+	return float4(image + (motion.z > .5 ? motion.xy : 0), motion.zw);
+}

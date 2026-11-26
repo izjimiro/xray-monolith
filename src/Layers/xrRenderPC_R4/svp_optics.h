@@ -22,3 +22,4 @@ void svp_bind_lens_constants();
 bool svp_thermal_overlay_active();
 bool svp_electronic_image_active(); // live NV or thermal display, the 3DSS image owns the lens
 bool svp_clipon_resolved();
+bool svp_fg_lens_motion_wanted(); // frame generation takes the lens's image motion (svp_fg_motion.cpp)

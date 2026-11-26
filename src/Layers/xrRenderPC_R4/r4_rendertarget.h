@@ -335,6 +335,7 @@ public:
 	ref_shader s_scope_lensfx; // pip r__svp_lensfx additive lens FX (CA, distortion, exit-pupil dimming)
 	ref_shader s_svp_nearblur; // pip near-field defocus on the scope image (svpscope 2)
 	ref_shader s_svp_nearblur_tile, s_svp_nearblur_reach; // its tile passes (rt_svp_nb_tile, rt_svp_nb_reach)
+	ref_shader s_svp_fg_lens_motion; // pip frame generation's motion over the lens (svp_fg_motion.cpp)
 	ref_shader s_svp_distort_stamp; // pip neutral distort-mask stamp over the composited lens
 	ref_shader s_svp_taa_stamp; // pip raw taa skip mask over the composited lens
 	ref_shader s_svp_lens_stencil; // pip 3DSS lens stencil (254) stamp under the late-pass overlays
@@ -677,6 +678,9 @@ public:
 	u32 reticle_capture_frame = u32(-1);
 	u32 reticle_capture_light_frame = u32(-1);
 	ref_rt rt_scope_reference_capture_tc; // where the Reference image takes the capture
+	u32 svp_fg_capture_frame = u32(-1); // frame the image pass wrote it for frame generation
+	ref_rt rt_fg_lens_motion; // the scene's vectors with the lens's image motion, for frame generation
+	void svp_fg_lens_motion();
 	ref_shader s_scope_reference_capture_light;
 	void draw_reticle_emission(const ref_shader& shader, ID3DDepthStencilView* depth);
 	void reticle_capture_begin(bool light);

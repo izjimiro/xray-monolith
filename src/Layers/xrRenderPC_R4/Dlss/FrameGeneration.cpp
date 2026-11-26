@@ -232,6 +232,13 @@ void CaptureScene()
     sceneCaptured = true;
 }
 
+void CaptureLensMotion(ID3D11Texture2D* motion)
+{
+    auto* bridge = HW.PresentationBridge();
+    if (!bridge || !sceneCaptured) return;
+    if (FAILED(bridge->ReplaceMotion(motion))) R_CHK(bridge->FailGeneration(bridge->LastFailure()));
+}
+
 void CaptureHudless(ID3D11Texture2D* source)
 {
     auto* bridge = HW.PresentationBridge();

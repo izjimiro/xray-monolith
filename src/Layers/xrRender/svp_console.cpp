@@ -106,6 +106,7 @@ float ps_r__svp_twilight = 1.0f; // svp exit-pupil twilight dimming: zooming shr
 float ps_r__svp_parallax = 0.0f; // svp reticle parallax, 0 = pinned center (default), 1 = the real eye deflection response
 int ps_r__svp_reticle_fit = 1; // svp reticle field slope follows the stock zoom projection so authored sizes fill the rim (0 = legacy wide-view slope)
 float ps_r__svp_near_blur = 1.0f; // svp near-field defocus strength on the scope image (svpscope 2, 0 = off)
+int ps_r__svp_fg_lens_mv = 1; // DX12 frame generation: the lens's PiP image motion over its glass (0 = the glass's, as the scene)
 int ps_r__svp_nearblur_scatter = 0; // svp near-blur composite, 0 = gather default look, 1 = scatter accumulator
 float ps_r__svp_focus_m = 100.0f; // svp parallax focus distance in meters, objects off this plane defocus by the thin lens law
 int ps_r__svp_authored_optics = 1; // svp use the authored per-scope scope_objective_lens_offset for the front plane + defocus aperture (0 = measured geometry only)
@@ -372,6 +373,7 @@ void svp_console_init()
 	CMD4(CCC_Float, "r__svp_parallax", &ps_r__svp_parallax, 0.0f, 10.0f);
 	CMD4(CCC_Integer, "r__svp_reticle_fit", &ps_r__svp_reticle_fit, 0, 1); // svp reticle slope fix kill-switch
 	CMD4(CCC_Float, "r__svp_near_blur", &ps_r__svp_near_blur, 0.0f, 3.0f); // svp near-field defocus strength (0 = off)
+	CMD4(CCC_Integer, "r__svp_fg_lens_mv", &ps_r__svp_fg_lens_mv, 0, 1); // frame generation motion over the lens
 	CMD4(CCC_Integer, "r__svp_nearblur_scatter", &ps_r__svp_nearblur_scatter, 0, 1);
 	CMD4(CCC_SvpInternalFloat, "r__svp_focus_m", &ps_r__svp_focus_m, 10.0f, 1000.0f);
 	CMD4(CCC_Integer, "r__svp_authored_optics", &ps_r__svp_authored_optics, 0, 1);

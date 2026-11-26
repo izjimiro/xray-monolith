@@ -26,7 +26,8 @@ const LPCSTR pip_blenders[] = { "scope_color_write", "scope_depth_write", "svp_d
 	"scope_reference_reticle_deferred_emission", "scope_reference_capture_light", "scope_debug", "svp_nearblur", "scope_reference_mesh",
 	"scope_reference_tonemap", "scope_reference_glyph", "scope_reference_filter", "scope_reference_sky", "scope_reference_sky_check",
 	"scope_reference_fog", "scope_reference_fog_blur", "scope_reference_distortion", "scope_reference_volumetric",
-	"scope_reference_particle_display", "scope_reference_particle_baseline", "scope_reference_particle_resolve" };
+	"scope_reference_particle_display", "scope_reference_particle_baseline", "scope_reference_particle_resolve",
+	"svp_fg_lens_motion" };
 // pixel shaders of PiP passes whose blenders are built in C++: the Reference capture (svp_reference_renderer.inl),
 // the lens glass composition (svp_optics.cpp) and the scope reflection capture (scope_vslr_renderer.cpp)
 const LPCSTR pip_pixel_shaders[] = { "scope_reference_capture", "scope_glass_compose", "scope_glass_compose_nvg",

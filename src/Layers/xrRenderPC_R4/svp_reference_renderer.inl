@@ -72,10 +72,10 @@ void svp_reference_unbind()
 }
 
 // Creates the FP16 target, or recreates it at a new size.
-void svp_reference_target(ref_rt& target, LPCSTR name, u32 width, u32 height)
+void svp_reference_target(ref_rt& target, LPCSTR name, u32 width, u32 height, D3DFORMAT format = D3DFMT_A16B16G16R16F)
 {
     if (target && (target->dwWidth != width || target->dwHeight != height)) target.destroy();
-    if (!target) target.create(name, width, height, D3DFMT_A16B16G16R16F);
+    if (!target) target.create(name, width, height, format);
 }
 
 // Draws the bound element over the whole target with the combine quad.
@@ -295,9 +295,11 @@ bool CRenderTarget::phase_scope_reference_ocular()
     const float transparent[4]={0,0,0,0};
     HW.pContext->ClearRenderTargetView(rt_scope_reference_ocular->pRT,transparent);
     svp_reference_target(rt_scope_reference_inside, "$user$svp_reference_inside", svp_reference_chart_size, svp_reference_chart_size);
-    if (capture->reticle_capture_light_current())
+    if (capture->reticle_capture_light_current() || svp_fg_lens_motion_wanted())
     {
-        svp_reference_target(rt_scope_reference_capture_tc, "$user$svp_reference_capture_tc", Width, Height);
+        // 32F: frame generation differentiates it between neighbouring pixels (svp_fg_lens_motion.ps)
+        svp_reference_target(rt_scope_reference_capture_tc, "$user$svp_reference_capture_tc", Width, Height,
+            D3DFMT_A32B32G32R32F);
         HW.pContext->ClearRenderTargetView(rt_scope_reference_capture_tc->pRT, transparent);
     }
     if(!s_scope_reference_glyph)s_scope_reference_glyph.create("scope_reference_glyph");

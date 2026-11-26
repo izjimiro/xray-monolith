@@ -923,6 +923,7 @@
     <ClCompile Include="r4_rendertarget_phase_3dss_reticle.cpp" />
     <ClCompile Include="r4_shader_warmup.cpp" />
     <ClCompile Include="svp_nearblur.cpp" />
+    <ClCompile Include="svp_fg_motion.cpp" />
     <ClCompile Include="svp_nvg.cpp" />
     <ClCompile Include="svp_camera_debug.cpp" />
     <ClCompile Include="svp_camera_tracking.cpp" />

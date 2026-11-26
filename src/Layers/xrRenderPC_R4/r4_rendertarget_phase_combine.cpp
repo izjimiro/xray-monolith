@@ -1203,6 +1203,7 @@ void CRenderTarget::phase_combine()
 	}
 
 #ifdef XR_DX12_BRIDGE
+    svp_fg_lens_motion(); // pip the lens shows the PiP image's motion, not the glass's
     // Display-sized postprocessed scene, before the ordinary 2D HUD is drawn.
     fg::CaptureHudless(fg_hudless_image());
 #endif
