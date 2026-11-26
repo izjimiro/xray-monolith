@@ -555,6 +555,9 @@ void CRenderDevice::on_idle()
 		time_span = std::chrono::duration_cast<std::chrono::duration<float>>(tcurrentf - tlastf);
 		// sleep through the wait but its last half millisecond, then spin to the exact time: the core stays
 		// free for the game thread started above (high resolution timer, Windows 10 1803+; else only the spin)
+#ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION // synchapi.h hides it below Windows 10 RS4 targets
+#define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
+#endif
 		static const HANDLE wait_timer =
 			CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
 		const float remaining = rr - time_span.count();
