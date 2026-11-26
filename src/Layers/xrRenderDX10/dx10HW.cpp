@@ -1644,8 +1644,12 @@ void CHW::AcquirePresentationFrame()
 {
     fg::BeginRender();
     R_CHK(m_presentBridge->AcquireFrame());
+    // pip SetActive points pBaseRT at a target without a reference of its own; the one held is the
+    // main view's secret_pBaseRT, which then has to follow the ring slot of each frame
+    pBaseRT = secret_pBaseRT;
     _RELEASE(pBaseRT);
     R_CHK(m_presentBridge->GetRenderTargetView(&pBaseRT));
+    secret_pBaseRT = pBaseRT;
 }
 
 extern void reshade_set_scene_depth(void* resource, unsigned long long generation);
