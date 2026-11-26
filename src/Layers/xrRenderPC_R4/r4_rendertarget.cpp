@@ -621,6 +621,26 @@ void generate_jitter(DWORD* dest, u32 elem_count)
 }
 
 #if USE_DX11
+// For the main target the stock-named texture is the RT's own, which the SVP points elsewhere,
+// so the view is kept here rather than taken from the RT's texture.
+void CRenderTarget::RenderTargetRemap::apply()
+{
+	ID3DBaseTexture* surface = target->pSurface;
+	if (view_surface != surface) // first use, or a swap_storage changed the RT's surface
+	{
+		texture->surface_set(surface);
+		_RELEASE(view);
+		view = texture->get_SRView();
+		if (view)
+			view->AddRef();
+		// the view holds the surface, so its address is not reused; no view (MSAA depth, or out of
+		// video memory) is not kept, the next switch makes it again as before
+		view_surface = view ? surface : nullptr;
+		return;
+	}
+	texture->surface_set(surface, view);
+}
+
 void CRenderTarget::SetActive(bool force)
 {
 	const bool isMain = this == RImplementation.TargetMain;
@@ -637,7 +657,7 @@ void CRenderTarget::SetActive(bool force)
 	if (!force && RImplementation.Target == this)
 	{
 		for (auto& r : RenderTargetRemaps)
-			r.first->surface_set(r.second->pSurface);
+			r.apply();
 		return;
 	}
 
@@ -665,7 +685,7 @@ void CRenderTarget::SetActive(bool force)
 
 	// point the stock-named textures at this viewport's RTs (restore for the main)
 	for (auto& r : RenderTargetRemaps)
-		r.first->surface_set(r.second->pSurface);
+		r.apply();
 
 	// DLSS: the main view's passes after the SVP's are scene-sized, the SVP keeps its own, after reconstruction the display
 	set_viewport_size(HW.pContext, (float)RenderScreenWidth(), (float)RenderScreenHeight());
@@ -1875,6 +1895,8 @@ CRenderTarget::~CRenderTarget()
 		if (t_dlss_scene_depth) t_dlss_scene_depth->surface_set(nullptr);
 		dlss::ReleaseTargets();
 	}
+	for (auto& r : RenderTargetRemaps)
+		_RELEASE(r.view);
 	_RELEASE(t_ss_async);
 
 	// Textures

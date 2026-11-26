@@ -141,6 +141,26 @@ void CTexture::surface_set(ID3DBaseTexture* surf)
 	}
 }
 
+void CTexture::surface_set(ID3DBaseTexture* surf, ID3DShaderResourceView* view)
+{
+	while (IsLoading())
+	{
+		SwitchToThread();
+	}
+	if (surf == pSurface && view == m_pSRView)
+		return;
+	if (cName.size() && strstr(cName.c_str(), "$user$"))
+		flags.bUser = true;
+	if (surf) surf->AddRef();
+	if (view) view->AddRef();
+	_RELEASE(pSurface);
+	_RELEASE(m_pSRView);
+	pSurface = surf;
+	m_pSRView = view;
+	if (pSurface)
+		desc_update();
+}
+
 ID3DBaseTexture* CTexture::surface_get()
 {
 	while (IsLoading())

@@ -78,6 +78,8 @@ public:
 
 #if defined(USE_DX10) || defined(USE_DX11)
 	ID3DShaderResourceView*				get_SRView() {return m_pSRView;}
+	// Points the texture at a surface and a view already made for it, creating no view.
+	void surface_set(ID3DBaseTexture* surf, ID3DShaderResourceView* view);
 #endif	//	USE_DX10
 
 private:

@@ -117,7 +117,16 @@ public:
 	ref_rt rt_baseRT;
 	ref_rt rt_baseZB;
 	// SVP RTs are created $svp-suffixed and remapped over the stock names in SetActive
-	xr_vector<std::pair<ref_texture, ref_rt>> RenderTargetRemaps;
+	struct RenderTargetRemap
+	{
+		ref_texture texture; // the stock-named texture the shaders bind
+		ref_rt target; // this target's RT behind that name
+		// a view of the RT's surface, kept so switching targets makes no view (the SVP's lights switch per light)
+		ID3DShaderResourceView* view = nullptr;
+		ID3DBaseTexture* view_surface = nullptr;
+		void apply();
+	};
+	xr_vector<RenderTargetRemap> RenderTargetRemaps;
 
 	// MRT-path
 	ref_rt rt_Depth; // Z-buffer like - initial depth

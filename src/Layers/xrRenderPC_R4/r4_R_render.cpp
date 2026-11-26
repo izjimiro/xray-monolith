@@ -604,9 +604,9 @@ void CRender::share_main_smaps()
 	if (TargetSVP && !TargetSVP->rt_smap_depth)
 		return;
 	for (auto& r : TargetMain->RenderTargetRemaps)
-		if (r.second == TargetMain->rt_smap_depth ||
-			(TargetMain->rt_smap_depth_minmax && r.second == TargetMain->rt_smap_depth_minmax))
-			r.first->surface_set(r.second->pSurface);
+		if (r.target == TargetMain->rt_smap_depth ||
+			(TargetMain->rt_smap_depth_minmax && r.target == TargetMain->rt_smap_depth_minmax))
+			r.apply();
 	RCache.Invalidate();
 }
 
