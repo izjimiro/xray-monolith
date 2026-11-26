@@ -144,6 +144,8 @@ void CRenderTarget::EnsureScopeShaders()
 	m_scope_shaders_ready = true;
 	s_scope_debug.create("scope_debug");
 	s_svp_nearblur.create("svp_nearblur");
+	s_svp_nearblur_tile.create("svp_nearblur_tile");
+	s_svp_nearblur_reach.create("svp_nearblur_reach");
 	// The lens glue is built on the 3D Shader Scopes framework (scope_3dss_common.h from 3DSS,
 	// scope_common.h from the GAMMA Patch). Without it, as on plain Anomaly, no lens is ever
 	// captured and these stay empty; draw_scope skips an empty shader.
@@ -329,8 +331,10 @@ void CRenderTarget::phase_svp_capture()
 		EvalSVP_DLSS(in);
 		return;
 	}
-	// pip near-field defocus, thermal falls through to the plain copy
-	if (svp_nearblur_pass(rt_Generic_0->pSurface, m_svp_nb_mip_surf, m_svp_nb_mip_tex, rt_secondVP->pRT))
+	// pip near-field defocus, thermal falls through to the plain copy; a Reference image captured this frame
+	// is defocused on its own and shown instead (only a lens the composite can draw on is captured)
+	if (scope_reference_raw_frame != Device.dwFrame
+		&& svp_nearblur_pass(rt_Generic_0->pSurface, m_svp_nb_mip_surf, m_svp_nb_mip_tex, rt_secondVP->pRT))
 		return;
 	// rt_secondVP alpha is garbage (nothing writes it) and must stay UNREAD, the scope shaders sample
 	// .rgb only and the lens composite blends srcalpha with its OWN forced o.a, never the source alpha

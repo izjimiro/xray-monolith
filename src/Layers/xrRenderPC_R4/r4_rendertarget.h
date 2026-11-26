@@ -148,6 +148,8 @@ public:
 	ID3DTexture2D* m_svp_nb_raw_mip_surf = nullptr; // the same for the FP16 Reference raw image, made on first use
 	ref_texture m_svp_nb_raw_mip_tex;
 	bool m_svp_nb_raw_mip_tried = false;
+	// near-blur tiles: largest CoC per tile, then the largest that reaches it along rows, then rows and columns
+	ref_rt rt_svp_nb_tile, rt_svp_nb_reach_x, rt_svp_nb_reach;
 
 
 	ref_rt rt_fakescope;	// crookr fakescope
@@ -323,6 +325,7 @@ public:
 	ref_shader s_scope_debug; // pip r__scope_debug on-screen multi-view inspector overlay
 	ref_shader s_scope_lensfx; // pip r__svp_lensfx additive lens FX (CA, distortion, exit-pupil dimming)
 	ref_shader s_svp_nearblur; // pip near-field defocus on the scope image (svpscope 2)
+	ref_shader s_svp_nearblur_tile, s_svp_nearblur_reach; // its tile passes (rt_svp_nb_tile, rt_svp_nb_reach)
 	ref_shader s_svp_distort_stamp; // pip neutral distort-mask stamp over the composited lens
 	ref_shader s_svp_taa_stamp; // pip raw taa skip mask over the composited lens
 	ref_shader s_svp_lens_stencil; // pip 3DSS lens stencil (254) stamp under the late-pass overlays

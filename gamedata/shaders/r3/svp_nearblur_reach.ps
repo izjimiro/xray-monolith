@@ -1,0 +1,26 @@
+// near-blur reach along one axis: the largest CoC among the tiles of this row (then column) whose
+// near-field disc can touch this tile; rows then columns take in every tile a full disc test would
+#include "svp_nearblur.h"
+
+Texture2D s_nb_reach_src; // the tile CoC, then the row pass
+uniform float4 svp_nearblur_axis; // xy: 1,0 rows, 0,1 columns
+
+float4 main(p_screen I, float4 pos2d : SV_POSITION) : SV_Target
+{
+	int2 t = int2(pos2d.xy);
+	int2 axis = int2(svp_nearblur_axis.xy);
+	int2 last = int2(screen_res.xy) - 1; // the tile grid
+	int reach = (int)svp_nearblur_tiles.w;
+	float r = 0.0f;
+	[loop] for (int d = -reach; d <= reach; ++d)
+	{
+		int2 n = t + axis * d;
+		if (any(n < 0) || any(n > last))
+			continue;
+		float coc = s_nb_reach_src.Load(int3(n, 0)).x;
+		// gap between the nearest pixels of the two tiles along the axis, rounded down; +1 px for the point sampling
+		if (coc + 1.0f >= max(abs(d) - 1, 0) * svp_nearblur_tiles.x)
+			r = max(r, coc);
+	}
+	return float4(r, 0.0f, 0.0f, 0.0f);
+}

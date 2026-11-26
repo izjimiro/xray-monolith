@@ -221,6 +221,9 @@ bool CRenderTarget::scope_reference_prepare_capture()
         || !RImplementation.TargetSVP->scope_reference_sky_qualified()) return false;
     const auto& nodes=RImplementation.GMBase.RGraph.mapScopeHUDSorted;
     if(std::none_of(nodes.begin(),nodes.end(),[](const auto& n){return n.pVisual && n.pMatrix;})) return false;
+    // only a lens the composite can draw on (phase_scope_reference_composite); else the stock image shows
+    const auto& ocular=Device.m_SecondViewport.eyepiece;
+    if(!(ocular.radius>EPS) || !(SvpReferenceCapture::LensScale(ocular.m_W)>0.f)) return false;
     scope_reference_camera_frame=Device.dwFrame;
     return true;
 }
@@ -249,7 +252,7 @@ void CRenderTarget::scope_reference_capture_end()
     const auto& p = RImplementation.TargetMain->scope_reference_packet;
     scope_reference_raw_frame = Device.dwFrame;
     scope_reference_raw_stamp = p.Stamp();
-    // near-field defocus, as the plain PiP image gets it in phase_svp_capture; its mip chain only once it is needed
+    // near-field defocus, here instead of on the plain PiP image (phase_svp_capture); its mip chain only once it is needed
     if (!m_svp_nb_raw_mip_tried && ps_r__svp_near_blur > 0.01f)
     {
         m_svp_nb_raw_mip_tried = true;

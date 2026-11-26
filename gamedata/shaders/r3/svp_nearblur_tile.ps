@@ -1,0 +1,14 @@
+// near-blur tiles: the largest near-field CoC in each tile of the scope image, from its nearest depth
+#include "svp_nearblur.h"
+
+float4 main(p_screen I, float4 pos2d : SV_POSITION) : SV_Target
+{
+	int tile = (int)svp_nearblur_tiles.x;
+	int2 origin = int2(pos2d.xy) * tile;
+	int2 last = int2(svp_nearblur_tiles.yz) - 1;
+	float z = 10000.0f;
+	[loop] for (int y = 0; y < tile; ++y)
+		[loop] for (int x = 0; x < tile; ++x)
+			z = min(z, nb_far(s_nb_pos.Load(int3(min(origin + int2(x, y), last), 0)).z));
+	return float4(nb_size(z), 0.0f, 0.0f, 0.0f);
+}
