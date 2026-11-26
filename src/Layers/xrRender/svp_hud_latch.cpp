@@ -199,6 +199,8 @@ void CDSGraphManager::svp_latch_hud_poses()
 		grab(n.pMatrix);
 	for (auto& n : RGraph.mapScopeHUDOverlay)
 		grab(n.pMatrix);
+	for (auto& n : RGraph.mapDlssHudEffects) // held for after the main view's upscaler
+		grab(n.pMatrix);
 
 	extern int scope_svp_enabled;
 	extern int ps_r__svp_weapon_continuity;
@@ -231,6 +233,8 @@ void CDSGraphManager::svp_latch_hud_poses()
 		for (auto& n : RGraph.mapReflexHUDSorted)
 			capture(n.pVisual);
 		for (auto& n : RGraph.mapScopeHUDOverlay)
+			capture(n.pVisual);
+		for (auto& n : RGraph.mapDlssHudEffects)
 			capture(n.pVisual);
 	}
 

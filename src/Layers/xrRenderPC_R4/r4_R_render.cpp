@@ -867,9 +867,11 @@ void CRender::render_forward()
 		GMBase.r_dsgraph_render_static(1, fwd_clear); // normal level, secondary priority
 		CParticlesAsync::Wait();
 		GMBase.r_dsgraph_render_dynamic(1, fwd_clear);
-		// Effects held for after the upscaler, if this frame is not reconstructed after all
-		if (!Target->DlssEffectsAfterUpscale())
-			GMBase.r_dsgraph_render_dlss_effects();
+		// Effects held for after the upscaler, if this frame is not reconstructed after all.
+		// pip the graph is shared: the scope pass draws the world ones and keeps them for the main view
+		const bool svp_effects = Device.true_pip_on && Device.m_SecondViewport.m_render_pass_is_svp;
+		if (svp_effects || !Target->DlssEffectsAfterUpscale())
+			GMBase.r_dsgraph_render_dlss_effects(svp_effects);
 		GMBase.fade_render(); // faded-portals
 		GMBase.r_dsgraph_render_sorted(false); // strict-sorted geoms
 		g_pGamePersistent->Environment().RenderLast(); // rain/thunder-bolts

@@ -774,11 +774,12 @@ void CDSGraphManager::r_dsgraph_extract_dlss_effects()
 	hold(RGraph.mapCustomFOVSorted.Sorted, isEffect);
 }
 
-void CDSGraphManager::r_dsgraph_render_dlss_effects()
+void CDSGraphManager::r_dsgraph_render_dlss_effects(bool keep)
 {
 	PROF_EVENT("r_dsgraph_render_dlss_effects");
-	r_dsgraph_render_graph_sorted(RGraph.mapDlssEffects, true);
-	if (RGraph.mapDlssHudEffects.empty()) return;
+	r_dsgraph_render_graph_sorted(RGraph.mapDlssEffects, !keep);
+	// pip the scope pass draws the HUD ones with the sorted HUD
+	if (keep || RGraph.mapDlssHudEffects.empty()) return;
 	CHudInitializer initializer(true);
 	RImplementation.rmNear();
 	r_dsgraph_render_graph_sorted(RGraph.mapDlssHudEffects, true);
@@ -914,6 +915,11 @@ void CDSGraphManager::r_dsgraph_render_sorted_hud()
 		s_svp_objective_suppress_wpnfx = objective_hud;
 		s_svp_objective_hud_bucket = objective_hud ? "sorted" : nullptr;
 		r_dsgraph_render_graph_sorted(RGraph.mapHUDSorted.Sorted, clear_hud);
+#if RENDER == R_R4
+		// pip HUD effects held for after the main view's upscaler, kept for it
+		if (Device.true_pip_on && Device.m_SecondViewport.m_render_pass_is_svp)
+			r_dsgraph_render_graph_sorted(RGraph.mapDlssHudEffects, false);
+#endif
 		s_svp_objective_suppress_wpnfx = false;
 		s_svp_objective_hud_bucket = nullptr;
 	}

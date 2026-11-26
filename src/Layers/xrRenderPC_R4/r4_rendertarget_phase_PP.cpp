@@ -276,10 +276,12 @@ bool CRenderTarget::DlssPostAfterUpscale() const
 
 // Laser beams are held out of the scene whenever the frame is reconstructed:
 // with the post chain, or else over the finished frame like the scope lenses.
+// pip but not then under the PiP lens, composited before reconstruction: they would cover it
 bool CRenderTarget::DlssEffectsAfterUpscale() const
 {
 	return DlssPostAfterUpscale() ||
-		(dlss::Active() && s_dlss_display_copy._get() != nullptr && !RImplementation.o.dx10_msaa);
+		(dlss::Active() && s_dlss_display_copy._get() != nullptr && !RImplementation.o.dx10_msaa
+			&& !(Device.true_pip_on && Device.m_SecondViewport.IsSVPActive()));
 }
 
 // Reconstruct the scene before sunshafts, fog scattering, motion blur, bloom,
