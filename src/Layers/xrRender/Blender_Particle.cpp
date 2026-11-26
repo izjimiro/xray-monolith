@@ -166,7 +166,12 @@ void CBlender_Particle::Compile(CBlender_Compile& C)
 			break; // SET
 		case 1: C.r_Pass("particle", "particle", FALSE, TRUE,FALSE, TRUE, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA, TRUE,
 		                 0);
-			C.RS.SetRS(D3DRS_COLORWRITEENABLE1, 0); // smoke and dust: no heat of their own, the heat behind shows through
+			// smoke and dust: no heat of their own, the heat behind shows through; fire drawn as BLEND, by texture in
+			// [gra_pip_heat_particles] (system.ltx, [GRA-X] Bodycam PiP 3DSS Patch), writes only the particle heat
+			// channel, its smoky frames keep the bodies' (R) and beams' (B) heat behind
+			C.RS.SetRS(D3DRS_COLORWRITEENABLE1,
+				!C.L_textures.empty() && pSettings->line_exist("gra_pip_heat_particles", *C.L_textures[0])
+					? D3DCOLORWRITEENABLE_GREEN : 0);
 			break; // BLEND
 		case 2: C.r_Pass("particle", "particle", FALSE, TRUE,FALSE, TRUE, D3DBLEND_ONE, D3DBLEND_ONE, TRUE, 0);
 			break; // ADD
