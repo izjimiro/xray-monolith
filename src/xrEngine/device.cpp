@@ -2,15 +2,9 @@
 #include "bodycam_reference_projection.h"
 #ifdef XR_DX12_BRIDGE
 #include "../Layers/xrRenderPC_R4/Dlss/FrameGeneration.h"
-
-// DirectX 12 Agility SDK 1.619.6 (bin\D3D12\D3D12Core.dll): Shader Model 6.6 for
-// FSR 4 on Windows 10. If the OS runtime is newer or the folder is missing, the
-// system D3D12 runtime is used instead. Must be exported from the executable.
-extern "C"
-{
-__declspec(dllexport) extern const UINT D3D12SDKVersion = 619;
-__declspec(dllexport) extern const char* D3D12SDKPath = ".\\D3D12\\";
-}
+// No Agility SDK export (D3D12SDKVersion): the system D3D12 runtime is used. Requesting
+// a newer SDK than the OS has without bin\D3D12\D3D12Core.dll fails D3D12CreateDevice
+// with D3D12_ERROR_INVALID_REDIST; only FSR 4 on Windows 10 needed it.
 #endif
 #include "../xrCDB/frustum.h"
 #include "xr_ioconsole.h"
