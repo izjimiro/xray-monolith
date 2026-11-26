@@ -553,6 +553,20 @@ void CRenderDevice::on_idle()
 			rr = refresh_rate;
 
 		time_span = std::chrono::duration_cast<std::chrono::duration<float>>(tcurrentf - tlastf);
+		// sleep through the wait but its last half millisecond, then spin to the exact time: the core stays
+		// free for the game thread started above (high resolution timer, Windows 10 1803+; else only the spin)
+		static const HANDLE wait_timer =
+			CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+		const float remaining = rr - time_span.count();
+		if (wait_timer && remaining > 0.001f)
+		{
+			LARGE_INTEGER due;
+			due.QuadPart = -LONGLONG((remaining - 0.0005f) * 1e7f); // relative, in 100 ns
+			if (SetWaitableTimer(wait_timer, &due, 0, nullptr, nullptr, FALSE))
+				WaitForSingleObject(wait_timer, INFINITE);
+			tcurrentf = std::chrono::high_resolution_clock::now();
+			time_span = std::chrono::duration_cast<std::chrono::duration<float>>(tcurrentf - tlastf);
+		}
 		while (time_span.count() < rr)
 		{
 			tcurrentf = std::chrono::high_resolution_clock::now();

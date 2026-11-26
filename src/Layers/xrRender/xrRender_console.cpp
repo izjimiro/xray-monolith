@@ -356,7 +356,7 @@ Fvector4 heat_vision_args_1 = { .0f, .0f, .0f, .0f };
 Fvector4 heat_vision_args_2 = { .0f, .0f, .0f, .0f };
 //--DSR-- HeatVision_end
 //crookr
-int scope_fake_enabled = 1;
+int scope_fake_enabled = 0; // 2D fake scope; the 3D/PiP scopes only copy the frame through it (SSS turns it on)
 int scope_3D_fake_enabled = 0; // Redotix99: for 3D Shader Based Scopes
 Fvector4 scope_objective_lens_offset = { .0f, .0f, .0f, .0f };
 // RenderDoc instrumentation, default off

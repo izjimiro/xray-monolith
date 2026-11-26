@@ -10,6 +10,7 @@
 #include "../xrRender/dxEnvironmentRender.h"
 #include "svp_lens_lighting.h"
 #include "svp_stats.h" // pip combine sub timers for the breakdown panel
+#include "svp_optics.h" // svp_thermal_overlay_active, the only lens that reads the heat
 #include "../xrRender/SkeletonX.h"
 
 #define STENCIL_CULL 0
@@ -903,7 +904,7 @@ void CRenderTarget::phase_combine()
 		const bool lensPosition = postAfterUpscale && rt_Generic_2->dwWidth != rt_Position->dwWidth;
 		const bool lensScene = postAfterUpscale &&
 			(rt_Generic_temp->dwWidth != rt_Generic_0->dwWidth || rt_Generic_temp->fmt != rt_Generic_0->fmt);
-		const bool lensHeat = postAfterUpscale && rt_Heat->dwWidth != rt_Position->dwWidth;
+		const bool lensHeat = postAfterUpscale && rt_Heat->dwWidth != rt_Position->dwWidth && svp_thermal_overlay_active();
 		dlss_lens_scratch_swap(lensPosition, lensScene, lensHeat);
 		// the display-size image needs the display-size depth, which exists only from here on
 		if (postAfterUpscale && !scope_glass_deferred_current())
