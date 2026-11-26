@@ -90,9 +90,10 @@ void BeginSimulation()
     renderStarted = false;
     // dwFrame advances in FrameMove, after this call. A 3D-scope (SVP) frame renders
     // the scope view without presenting; it belongs to the next presented frame and
-    // must neither sleep in Reflex nor consume a frame token.
+    // must neither sleep in Reflex nor consume a frame token. bodycam true PiP draws the
+    // scope pass inside every presented frame (dxRenderDeviceRender::End), there is none.
     auto& svp = Device.m_SecondViewport;
-    scopeFrame = svp.IsSVPActive() && (Device.dwFrame + 1) % svp.GetSVPFrameDelay() == 0;
+    scopeFrame = !Device.true_pip_on && svp.IsSVPActive() && (Device.dwFrame + 1) % svp.GetSVPFrameDelay() == 0;
     if (scopeFrame) return;
     UINT limitUs = 0;
     if (ReflexLimitsFrames())
@@ -186,8 +187,9 @@ void CaptureScene()
     if (Device.m_SecondViewport.IsSVPFrame()) return;
     if (bridge) bridge->SetDepthExport(use_reshade && !depthExportFailed);
     if (!bridge || !Eligible() || !bridge->NeedsFGInputs()) { havePrevious = false; if (bridge) CaptureDepth(*bridge); return; }
-    // Main frames are not consecutive while a 3D scope renders on alternate frames.
-    const u32 maxGap = Device.m_SecondViewport.IsSVPActive() ? Device.m_SecondViewport.GetSVPFrameDelay() : 1;
+    // Main frames are not consecutive while a 3D scope renders on alternate frames (not under true PiP).
+    const u32 maxGap = !Device.true_pip_on && Device.m_SecondViewport.IsSVPActive() ?
+        Device.m_SecondViewport.GetSVPFrameDelay() : 1;
     const bool cut = !havePrevious || Device.dwFrame <= previousFrame || Device.dwFrame - previousFrame > maxGap ||
         previousPosition.distance_to_sqr(Device.vCameraPosition) > 64.f ||
         previousDirection.dotproduct(Device.vCameraDirection) < .25f || _abs(previousFov - Device.fFOV) > 10.f;
