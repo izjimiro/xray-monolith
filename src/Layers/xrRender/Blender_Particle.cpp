@@ -166,6 +166,7 @@ void CBlender_Particle::Compile(CBlender_Compile& C)
 			break; // SET
 		case 1: C.r_Pass("particle", "particle", FALSE, TRUE,FALSE, TRUE, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA, TRUE,
 		                 0);
+			C.RS.SetRS(D3DRS_COLORWRITEENABLE1, 0); // smoke and dust: no heat of their own, the heat behind shows through
 			break; // BLEND
 		case 2: C.r_Pass("particle", "particle", FALSE, TRUE,FALSE, TRUE, D3DBLEND_ONE, D3DBLEND_ONE, TRUE, 0);
 			break; // ADD

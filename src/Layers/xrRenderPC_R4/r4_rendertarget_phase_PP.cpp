@@ -704,12 +704,18 @@ void CRenderTarget::phase_dlss_postprocess()
 		phase_gasmask_dudv();
 		if (ps_r2_drops_control.x > 0) phase_gasmask_drops();
 	}
+	// pip the physical scope renders the sight while the SVP is live, as without the upscaler (phase_combine)
+	const bool fakeScope = scope_fake_enabled && !(Device.true_pip_on && Device.m_SecondViewport.IsSVPActive());
 	// These read the post chain's blur, which only its display-size twins hold.
-	const bool overlaysReadPost = postAfterUpscale && (ps_r2_nightvision > 0 || ps_r2_heatvision > 0 || scope_fake_enabled);
+	const bool overlaysReadPost = postAfterUpscale && (ps_r2_nightvision > 0 || ps_r2_heatvision > 0 || fakeScope);
 	if (overlaysReadPost) dlss_post_swap();
+	// pip the night vision split depth-tests the lens (svp_distort_stamp); only the post chain after
+	// reconstruction has left the display-size depth here
+	if (!postAfterUpscale && ps_r2_nightvision > 0 && Device.true_pip_on && Device.m_SecondViewport.IsSVPActive())
+		phase_dlss_native_depth(sceneJitter.x, sceneJitter.y, true);
 	if (ps_r2_nightvision > 0 && !svp_nvg_pass()) phase_nightvision(); // PiP: the lens keeps its own centred tube
 	if (ps_r2_heatvision > 0) phase_heatvision();
-	if (scope_fake_enabled) phase_fakescope();
+	if (fakeScope) phase_fakescope();
 	if (overlaysReadPost) dlss_post_restore();
 }
 
